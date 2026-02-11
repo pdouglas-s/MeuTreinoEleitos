@@ -1,24 +1,33 @@
 # MeuTreinoEleitos
 
-Scaffold inicial do aplicativo mobile (Expo) com integração mínima ao Firebase (Auth + Firestore).
+Aplicativo mobile (Expo + React Native) com integração Firebase (Auth + Firestore) para gerenciamento de treinos entre professores e alunos.
 
-Como usar
+## 🚀 Início Rápido
 
-1. Instale dependências:
+### 1. Instalar dependências
 
 ```bash
 npm install
 ```
 
-2. Configure variáveis de ambiente (não inclua senhas em repositórios públicos):
+### 2. Configurar Firebase
 
-- `EXPO_PUBLIC_FIREBASE_API_KEY` e demais chaves do Firebase
-- `EXPO_PUBLIC_FIREBASE_APP_ID`
-- `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
-- `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-- `DEFAULT_STUDENT_PASSWORD` (senha padrão para alunos — defina localmente como `Mudar@123` conforme regra de negócio, mas NÃO commite)
+**📖 Guia completo:** [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md)
 
-Exemplo (Windows PowerShell - temporário para sessão atual):
+Resumo:
+1. Crie projeto no [Firebase Console](https://console.firebase.google.com/)
+2. Ative Authentication (Email/Password) e Firestore
+3. Configure as variáveis de ambiente com suas credenciais
+
+### 3. Variáveis de Ambiente
+
+Copie `.env.example` para `.env` e preencha com suas credenciais do Firebase:
+
+```bash
+cp .env.example .env
+```
+
+Ou configure temporariamente no PowerShell (Windows):
 
 ```powershell
 $env:EXPO_PUBLIC_FIREBASE_API_KEY="sua_api_key"

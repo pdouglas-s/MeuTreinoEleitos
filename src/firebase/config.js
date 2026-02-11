@@ -21,13 +21,23 @@ const firebaseConfig = {
 
 let app, auth, db;
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-} catch (error) {
-  console.error('Firebase initialization error:', error);
-  // Cria placeholders para evitar crashes
+// Só inicializa Firebase se as credenciais essenciais estiverem presentes
+const hasRequiredConfig = firebaseConfig.apiKey && firebaseConfig.appId;
+
+if (hasRequiredConfig) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    console.log('Firebase initialized successfully');
+  } catch (error) {
+    console.error('Firebase initialization error:', error);
+    app = null;
+    auth = null;
+    db = null;
+  }
+} else {
+  console.warn('Firebase not initialized: missing API key or App ID');
   app = null;
   auth = null;
   db = null;
