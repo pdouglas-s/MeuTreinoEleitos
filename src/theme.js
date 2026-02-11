@@ -31,3 +31,6 @@ const dark = {
 const ThemeContext = React.createContext({ theme: light, toggle: () => {} });
 
 export { light, dark, ThemeContext };
+
+// Default export for components still using `import theme from '../theme'`
+export default light;

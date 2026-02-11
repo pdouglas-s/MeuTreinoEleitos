@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
 import { changePassword, setPrimeiroAcessoFalse } from '../services/userService';
+import { Alert } from '../utils/alert';
 import { auth } from '../firebase/config';
 
 export default function ChangePassword({ navigation }) {

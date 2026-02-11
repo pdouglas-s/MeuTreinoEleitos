@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Button, FlatList, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Button, FlatList, TouchableOpacity } from 'react-native';
 import theme from '../theme';
+import { Alert } from '../utils/alert';
 import { listItensByTreino, addItemToTreino, deleteItem } from '../services/treinoItensService';
 import { updateTreino } from '../services/treinoService';
 import { auth } from '../firebase/config';

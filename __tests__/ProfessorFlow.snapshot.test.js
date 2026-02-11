@@ -12,9 +12,12 @@ const origUseEffect = React.useEffect;
 React.useEffect = () => {};
 const renderer = require('react-test-renderer');
 const ProfessorHome = require('../src/screens/Professor/ProfessorHome').default;
+const { ThemeContext, light } = require('../src/theme');
 
 it('ProfessorHome render snapshot (flow básico)', () => {
-  const tree = renderer.create(React.createElement(ProfessorHome));
+  const tree = renderer.create(
+    React.createElement(ThemeContext.Provider, { value: { theme: light, toggle: () => {} } }, React.createElement(ProfessorHome))
+  );
   expect(tree.toJSON()).toMatchSnapshot();
   // restore
   React.useEffect = origUseEffect;

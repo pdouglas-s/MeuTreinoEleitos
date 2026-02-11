@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, FlatList } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, FlatList } from 'react-native';
 import theme from '../../theme';
+import { Alert } from '../../utils/alert';
 import { createAluno } from '../../services/userService';
 import { createTreino, listTreinosByProfessor } from '../../services/treinoService';
 import { addItemToTreino } from '../../services/treinoItensService';
