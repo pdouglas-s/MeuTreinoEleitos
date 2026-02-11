@@ -3,15 +3,18 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeContext, light, dark } from './src/theme';
+import Constants from 'expo-constants';
 
 const Stack = createNativeStackNavigator();
 
 // Verifica se as variáveis Firebase essenciais estão configuradas
 const isFirebaseConfigured = () => {
   try {
-    const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
-    const appId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
-    return !!(apiKey || appId);
+    const extra = Constants.expoConfig?.extra || {};
+    const apiKey = extra.EXPO_PUBLIC_FIREBASE_API_KEY;
+    const appId = extra.EXPO_PUBLIC_FIREBASE_APP_ID;
+    console.log('Checking Firebase config:', { hasApiKey: !!apiKey, hasAppId: !!appId });
+    return !!(apiKey && appId);
   } catch (e) {
     console.error('Error checking Firebase config:', e);
     return false;
@@ -58,6 +61,7 @@ export default function App() {
 
   // Somente carrega as telas quando Firebase estiver configurado
   const LoginScreen = lazy(() => import('./src/screens/LoginScreen'));
+  const RegisterScreen = lazy(() => import('./src/screens/RegisterScreen'));
   const ProfessorHome = lazy(() => import('./src/screens/Professor/ProfessorHome'));
   const AlunoHome = lazy(() => import('./src/screens/Aluno/AlunoHome'));
   const TreinoDetail = lazy(() => import('./src/screens/TreinoDetail'));
@@ -69,6 +73,7 @@ export default function App() {
         <NavigationContainer>
           <Stack.Navigator initialRouteName="Login">
             <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
+            <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Criar Conta' }} />
             <Stack.Screen name="ProfessorHome" component={ProfessorHome} options={{ title: 'Professor' }} />
             <Stack.Screen name="AlunoHome" component={AlunoHome} options={{ title: 'Aluno' }} />
             <Stack.Screen name="TreinoDetail" component={TreinoDetail} options={{ title: 'Treino' }} />

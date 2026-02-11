@@ -1,10 +1,14 @@
 import { auth, db } from '../firebase/config';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import Constants from 'expo-constants';
 
 // Cria um usuário aluno e registra no Firestore conforme schema
 export async function createAluno({ nome, email }) {
-  const defaultPassword = process.env.DEFAULT_STUDENT_PASSWORD || '';
+  const extra = Constants.expoConfig?.extra || {};
+  const defaultPassword = extra.DEFAULT_STUDENT_PASSWORD || '';
+  console.log('createAluno - defaultPassword configured:', !!defaultPassword);
+  
   if (!defaultPassword) throw new Error('DEFAULT_STUDENT_PASSWORD não configurada');
 
   const userCred = await createUserWithEmailAndPassword(auth, email, defaultPassword);
@@ -18,6 +22,30 @@ export async function createAluno({ nome, email }) {
   });
 
   return { uid };
+}
+
+// Registra um novo usuário (professor ou aluno)
+export async function registerUser({ nome, email, password, role }) {
+  console.log('registerUser called with:', { nome, email, role, hasPassword: !!password });
+  
+  try {
+    const userCred = await createUserWithEmailAndPassword(auth, email, password);
+    const uid = userCred.user.uid;
+    console.log('User created in Auth:', uid);
+
+    await setDoc(doc(db, 'users', uid), {
+      nome,
+      email,
+      role: role || 'aluno',
+      primeiro_acesso: false
+    });
+    console.log('User profile created in Firestore');
+
+    return { uid };
+  } catch (error) {
+    console.error('Error in registerUser:', error);
+    throw error;
+  }
 }
 
 export async function login({ email, password }) {

@@ -30,6 +30,8 @@ export default function LoginScreen({ navigation }) {
       <TextInput placeholder="E-mail" style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
       <TextInput placeholder="Senha" secureTextEntry style={styles.input} value={password} onChangeText={setPassword} />
       <Button title="Entrar" onPress={handleLogin} />
+      <View style={styles.divider} />
+      <Button title="Criar Conta" onPress={() => navigation.navigate('Register')} color="#666" />
     </View>
   );
 }
@@ -37,5 +39,6 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 16 },
   title: { fontSize: 28, textAlign: 'center', marginBottom: 24 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, padding: 12, marginBottom: 12 }
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, padding: 12, marginBottom: 12 },
+  divider: { height: 20 }
 });
