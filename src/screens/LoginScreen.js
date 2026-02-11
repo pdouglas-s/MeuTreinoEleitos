@@ -11,6 +11,11 @@ export default function LoginScreen({ navigation }) {
     try {
       const { profile } = await login({ email, password });
       if (!profile) return Alert.alert('Erro', 'Perfil não encontrado');
+      if (profile.primeiro_acesso) {
+        // forçar troca de senha
+        navigation.replace('ChangePassword');
+        return;
+      }
       if (profile.role === 'professor') navigation.replace('ProfessorHome');
       else navigation.replace('AlunoHome');
     } catch (err) {

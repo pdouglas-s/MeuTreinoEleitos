@@ -1,6 +1,6 @@
 import { auth, db } from '../firebase/config';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 // Cria um usuário aluno e registra no Firestore conforme schema
 export async function createAluno({ nome, email }) {
@@ -26,4 +26,14 @@ export async function login({ email, password }) {
   const snapshot = await getDoc(doc(db, 'users', uid));
   const data = snapshot.exists() ? snapshot.data() : null;
   return { uid, profile: data };
+}
+
+export async function changePassword(newPassword) {
+  if (!auth.currentUser) throw new Error('Usuário não autenticado');
+  await updatePassword(auth.currentUser, newPassword);
+}
+
+export async function setPrimeiroAcessoFalse(uid) {
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, { primeiro_acesso: false });
 }

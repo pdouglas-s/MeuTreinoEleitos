@@ -1,5 +1,5 @@
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc } from 'firebase/firestore';
 
 const itensCol = collection(db, 'treino_itens');
 
@@ -12,4 +12,9 @@ export async function listItensByTreino(treino_id) {
   const q = query(itensCol, where('treino_id', '==', treino_id));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function deleteItem(item_id) {
+  const ref = doc(db, 'treino_itens', item_id);
+  await deleteDoc(ref);
 }
