@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // users: professors can read all, alunos can read only their doc
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor');
+      allow create: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
+      allow update: if request.auth != null && request.auth.uid == userId; // user can update own profile
+      allow delete: if false;
+    }
+
+    // treinos: only owner aluno or professor can read/write
+    match /treinos/{docId} {
+      allow read, write: if request.auth != null && (
+        resource.data.aluno_id == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor' || request.resource.data.aluno_id == request.auth.uid
+      );
+    }
+
+    // treino_itens: linked to treinos - check treino ownership
+    match /treino_itens/{docId} {
+      allow read, write: if request.auth != null && (
+        resource.data.treino_id != null && (
+          // fetch treino doc to verify owner
+          get(/databases/$(database)/documents/treinos/$(resource.data.treino_id)).data.aluno_id == request.auth.uid
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor'
+        )
+      );
+    }
+
+    // avaliacoes: only professor or owner aluno can read/write
+    match /avaliacoes/{docId} {
+      allow read, write: if request.auth != null && (
+        resource.data.aluno_id == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor'
+      );
+    }
+  }
+}
