@@ -1,0 +1,9 @@
+node_modules/
+.expo/
+android/
+ios/
+.env
+
+# Service account keys (não commitar)
+meu-treino-eleitos-firebase-adminsdk-*.json
+meu-treino-eleitos-firebase-adminsdk-fbsvc-d490dff0c1.json
