@@ -4,7 +4,7 @@ import theme from '../theme';
 import { Alert } from '../utils/alert';
 import { listItensByTreino, addItemToTreino, deleteItem } from '../services/treinoItensService';
 import { updateTreino, deleteTreino } from '../services/treinoService';
-import { searchExerciciosByNome, listAllExercicios } from '../services/exerciciosService';
+import { listAllExercicios } from '../services/exerciciosService';
 import { listAllAlunos } from '../services/userService';
 import { auth } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,6 +25,7 @@ export default function TreinoDetail({ route, navigation }) {
   
   // Busca de exercícios
   const [busca, setBusca] = useState('');
+  const [todosExercicios, setTodosExercicios] = useState([]);
   const [exerciciosEncontrados, setExerciciosEncontrados] = useState([]);
   const [mostrarBusca, setMostrarBusca] = useState(false);
   
@@ -44,6 +45,7 @@ export default function TreinoDetail({ route, navigation }) {
   async function loadExercicios() {
     try {
       const all = await listAllExercicios();
+      setTodosExercicios(all);
       setExerciciosEncontrados(all);
     } catch (err) {
       console.warn('Erro ao carregar exercícios', err.message);
@@ -138,17 +140,16 @@ export default function TreinoDetail({ route, navigation }) {
 
   async function buscarExercicios(termo) {
     setBusca(termo);
-    if (termo.length < 2) {
-      const all = await listAllExercicios();
-      setExerciciosEncontrados(all);
+    const termoCategoria = String(termo || '').trim().toLowerCase();
+    if (termoCategoria.length < 2) {
+      setExerciciosEncontrados(todosExercicios);
       return;
     }
-    try {
-      const resultado = await searchExerciciosByNome(termo);
-      setExerciciosEncontrados(resultado);
-    } catch (err) {
-      console.warn('Erro ao buscar exercícios', err.message);
-    }
+
+    const filtrados = todosExercicios.filter((ex) =>
+      String(ex.categoria || '').toLowerCase().includes(termoCategoria)
+    );
+    setExerciciosEncontrados(filtrados);
   }
 
   function selecionarExercicio(exercicio) {
@@ -195,7 +196,7 @@ export default function TreinoDetail({ route, navigation }) {
         {mostrarBusca && (
           <View style={styles.buscaContainer}>
             <TextInput 
-              placeholder="Buscar exercício..." 
+              placeholder="Buscar por categoria (ex.: Peito)" 
               style={styles.input} 
               value={busca} 
               onChangeText={buscarExercicios} 
