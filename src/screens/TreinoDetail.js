@@ -363,7 +363,11 @@ export default function TreinoDetail({ route, navigation }) {
             </Text>
           )}
           
-          <Button title="💾 Salvar alterações" onPress={handleUpdateTreino} color="#059669" />
+          <Button
+            title={alunoSelecionado && alunoSelecionado !== (treino.aluno_id || '') ? '🔗 Criar novo vínculo' : '💾 Salvar alterações'}
+            onPress={handleUpdateTreino}
+            color={alunoSelecionado && alunoSelecionado !== (treino.aluno_id || '') ? '#d97706' : '#059669'}
+          />
         </View>
       )}
 
