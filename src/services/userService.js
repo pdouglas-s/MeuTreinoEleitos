@@ -1,6 +1,7 @@
 import { auth, db } from '../firebase/config';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
 import { getAuth, signOut } from 'firebase/auth';
+import { setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import Constants from 'expo-constants';
@@ -44,6 +45,7 @@ async function createAuthUserWithoutReplacingSession(email, password) {
   const secondaryAuth = getAuth(secondaryApp);
 
   try {
+    await setPersistence(secondaryAuth, inMemoryPersistence);
     const userCred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
     return userCred.user.uid;
   } finally {
@@ -72,8 +74,7 @@ export async function createAluno({ nome, email }) {
     throw new Error('Não é possível criar ADMIN através deste método. Use o registro normal.');
   }
 
-  const userCred = await createUserWithEmailAndPassword(auth, emailNormalizado, defaultPassword);
-  const uid = userCred.user.uid;
+  const uid = await createAuthUserWithoutReplacingSession(emailNormalizado, defaultPassword);
 
   await setDoc(doc(db, 'users', uid), {
     nome: nomeUpperCase,

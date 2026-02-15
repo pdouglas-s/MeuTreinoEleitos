@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
-import { listAllExercicios, createExercicio, deleteExercicio, inicializarBancoExercicios, existemExerciciosPadrao, deleteExerciciosPadrao } from '../../services/exerciciosService';
+import { listAllExercicios, createExercicio, deleteExercicio, inicializarBancoExercicios, existemExerciciosPadrao, deleteExerciciosPadrao, updateExercicio } from '../../services/exerciciosService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -17,6 +17,8 @@ export default function GerenciarExercicios({ navigation }) {
   const [progresso, setProgresso] = useState(0);
   const [statusMensagem, setStatusMensagem] = useState('');
   const [temExerciciosPadrao, setTemExerciciosPadrao] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [nomeEditado, setNomeEditado] = useState('');
 
   useEffect(() => {
     loadExercicios();
@@ -62,6 +64,36 @@ export default function GerenciarExercicios({ navigation }) {
       await deleteExercicio(exercicio_id);
       Alert.alert('Sucesso', 'Exercício excluído');
       loadExercicios();
+    } catch (err) {
+      Alert.alert('Erro', err.message);
+    }
+  }
+
+  function iniciarEdicao(exercicio) {
+    setEditandoId(exercicio.id);
+    setNomeEditado(exercicio.nome || '');
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setNomeEditado('');
+  }
+
+  async function salvarEdicaoNome(exercicio) {
+    const novoNome = String(nomeEditado || '').trim();
+    if (!novoNome) return Alert.alert('Erro', 'Nome do exercício é obrigatório');
+    if (novoNome === exercicio.nome) {
+      cancelarEdicao();
+      return;
+    }
+
+    try {
+      await updateExercicio(exercicio.id, { nome: novoNome });
+      setExercicios((prev) => prev.map((item) => (
+        item.id === exercicio.id ? { ...item, nome: novoNome } : item
+      )));
+      Alert.alert('Sucesso', 'Nome do exercício atualizado');
+      cancelarEdicao();
     } catch (err) {
       Alert.alert('Erro', err.message);
     }
@@ -221,14 +253,41 @@ export default function GerenciarExercicios({ navigation }) {
         renderItem={({ item }) => (
           <View style={styles.exercicioRow}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome}</Text>
+              {editandoId === item.id ? (
+                <TextInput
+                  value={nomeEditado}
+                  onChangeText={setNomeEditado}
+                  style={styles.editInput}
+                  placeholder="Novo nome do exercício"
+                />
+              ) : (
+                <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome}</Text>
+              )}
               <Text style={{ fontSize: 12, color: '#666' }}>
                 {item.categoria} • {item.series_padrao || '-'}x{item.repeticoes_padrao || '-'}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
-              <Text style={{ color: '#dc2626', fontSize: 14 }}>🗑️</Text>
-            </TouchableOpacity>
+            <View style={styles.rowActions}>
+              {editandoId === item.id ? (
+                <>
+                  <TouchableOpacity onPress={() => salvarEdicaoNome(item)} style={styles.saveBtn}>
+                    <Text style={{ color: '#065f46', fontSize: 13 }}>Salvar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={cancelarEdicao} style={styles.cancelBtn}>
+                    <Text style={{ color: '#374151', fontSize: 13 }}>Cancelar</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}>
+                    <Text style={{ color: '#1d4ed8', fontSize: 13 }}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
+                    <Text style={{ color: '#dc2626', fontSize: 14 }}>🗑️</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
         )}
       />
@@ -279,6 +338,40 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.sm,
     backgroundColor: '#fee',
     marginLeft: 8
+  },
+  editBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: theme.radii.sm,
+    backgroundColor: '#eff6ff',
+    marginLeft: 8
+  },
+  saveBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: theme.radii.sm,
+    backgroundColor: '#d1fae5',
+    marginLeft: 8
+  },
+  cancelBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: theme.radii.sm,
+    backgroundColor: '#f3f4f6',
+    marginLeft: 8
+  },
+  rowActions: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 6,
+    backgroundColor: '#fff'
   },
   emptyContainer: {
     padding: 20,
