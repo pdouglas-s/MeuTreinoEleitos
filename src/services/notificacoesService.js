@@ -1,6 +1,17 @@
 import { db } from '../firebase/config';
 import { collection, addDoc, query, where, getDocs, orderBy, doc, updateDoc, writeBatch } from 'firebase/firestore';
 
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function sortByCreatedAtDesc(items) {
+  return [...items].sort((a, b) => toMillis(b.created_at) - toMillis(a.created_at));
+}
+
 /**
  * Envia notificação para o professor
  */
@@ -39,23 +50,35 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
  * Lista notificações de um professor
  */
 export async function listarNotificacoesProfessor(professorId, somenteNaoLidas = false) {
-  let q = query(
-    collection(db, 'notificacoes'),
-    where('professor_id', '==', professorId),
-    orderBy('created_at', 'desc')
-  );
-  
-  if (somenteNaoLidas) {
-    q = query(
-      collection(db, 'notificacoes'),
-      where('professor_id', '==', professorId),
-      where('lida', '==', false),
-      orderBy('created_at', 'desc')
-    );
+  const baseCollection = collection(db, 'notificacoes');
+  const orderedQuery = somenteNaoLidas
+    ? query(
+        baseCollection,
+        where('professor_id', '==', professorId),
+        where('lida', '==', false),
+        orderBy('created_at', 'desc')
+      )
+    : query(
+        baseCollection,
+        where('professor_id', '==', professorId),
+        orderBy('created_at', 'desc')
+      );
+
+  try {
+    const snapshot = await getDocs(orderedQuery);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    const needsIndex = err?.code === 'failed-precondition' || String(err?.message || '').toLowerCase().includes('requires an index');
+    if (!needsIndex) throw err;
+
+    const fallbackQuery = somenteNaoLidas
+      ? query(baseCollection, where('professor_id', '==', professorId), where('lida', '==', false))
+      : query(baseCollection, where('professor_id', '==', professorId));
+
+    const snapshot = await getDocs(fallbackQuery);
+    const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return sortByCreatedAtDesc(notifs);
   }
-  
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
 /**
