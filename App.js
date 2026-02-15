@@ -77,6 +77,8 @@ function AppNavigator() {
   const LoginScreen = lazy(() => import('./src/screens/LoginScreen'));
   const RegisterScreen = lazy(() => import('./src/screens/RegisterScreen'));
   const ProfessorHome = lazy(() => import('./src/screens/Professor/ProfessorHome'));
+  const AdminAcademiaHome = lazy(() => import('./src/screens/AdminAcademiaHome'));
+  const SystemAdminHome = lazy(() => import('./src/screens/SystemAdminHome'));
   const AlunoHome = lazy(() => import('./src/screens/Aluno/AlunoHome'));
   const TreinoDetail = lazy(() => import('./src/screens/TreinoDetail'));
   const ChangePassword = lazy(() => import('./src/screens/ChangePassword'));
@@ -92,6 +94,10 @@ function AppNavigator() {
   if (isAuthenticated && profile) {
     if (profile.primeiro_acesso) {
       initialRoute = 'ChangePassword';
+    } else if (profile.role === 'admin_sistema') {
+      initialRoute = 'SystemAdminHome';
+    } else if (profile.role === 'admin_academia') {
+      initialRoute = 'AdminAcademiaHome';
     } else if (profile.role === 'professor') {
       initialRoute = 'ProfessorHome';
     } else {
@@ -105,6 +111,8 @@ function AppNavigator() {
         <Stack.Navigator initialRouteName={initialRoute}>
           <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
           <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Criar Conta' }} />
+          <Stack.Screen name="SystemAdminHome" component={SystemAdminHome} options={{ title: 'Admin do Sistema' }} />
+          <Stack.Screen name="AdminAcademiaHome" component={AdminAcademiaHome} options={{ title: 'Admin da Academia' }} />
           <Stack.Screen name="ProfessorHome" component={ProfessorHome} options={{ title: 'Professor' }} />
           <Stack.Screen name="AlunoHome" component={AlunoHome} options={{ title: 'Aluno' }} />
           <Stack.Screen name="TreinoDetail" component={TreinoDetail} options={{ title: 'Treino' }} />

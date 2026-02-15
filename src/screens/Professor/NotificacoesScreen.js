@@ -13,7 +13,7 @@ export default function NotificacoesScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const userId = auth.currentUser?.uid || profile?.id || profile?.uid || null;
-  const isProfessor = profile?.role === 'professor';
+  const isProfessor = ['professor', 'admin_academia', 'admin_sistema'].includes(profile?.role);
 
   useEffect(() => {
     if (!userId) {

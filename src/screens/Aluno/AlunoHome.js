@@ -9,6 +9,7 @@ import { listItensByTreino } from '../../services/treinoItensService';
 import { contarNaoLidasAluno, notificarResumoSemanalAluno } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
+import { getAuthErrorMessage } from '../../utils/authErrors';
 import theme from '../../theme';
 
 export default function AlunoHome({ navigation }) {
@@ -77,7 +78,7 @@ export default function AlunoHome({ navigation }) {
       await logout();
       navigation.replace('Login');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao sair: ' + err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Falha ao sair.'));
     }
   }
 

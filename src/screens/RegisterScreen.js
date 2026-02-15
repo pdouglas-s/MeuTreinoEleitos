@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, ScrollView, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, Button, StyleSheet, ScrollView } from 'react-native';
 import { signOut } from 'firebase/auth';
-import { registerUser } from '../services/userService';
+import { hasSystemAdmin, registerUser } from '../services/userService';
 import { Alert } from '../utils/alert';
 import { isValidEmail, isValidPassword, MIN_PASSWORD_LENGTH } from '../utils/validation';
+import { getAuthErrorMessage } from '../utils/authErrors';
 import { auth } from '../firebase/config';
 import theme from '../theme';
 
@@ -11,9 +12,28 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nome, setNome] = useState('');
+  const [cadastroPublicoAtivo, setCadastroPublicoAtivo] = useState(true);
+  const [checking, setChecking] = useState(true);
   const emailInvalido = email.trim().length > 0 && !isValidEmail(email);
   const senhaInvalida = password.length > 0 && !isValidPassword(password);
-  const registerDisabled = !nome.trim() || !email.trim() || !password || emailInvalido || senhaInvalida;
+  const registerDisabled = !nome.trim() || !email.trim() || !password || emailInvalido || senhaInvalida || !cadastroPublicoAtivo || checking;
+
+  useEffect(() => {
+    async function checkPublicRegister() {
+      try {
+        const exists = await hasSystemAdmin();
+        setCadastroPublicoAtivo(!exists);
+        if (exists) {
+          Alert.alert('Cadastro desabilitado', 'O cadastro público está disponível apenas até o primeiro admin do sistema.');
+        }
+      } catch (error) {
+        console.warn('Erro ao verificar cadastro público:', error?.message || error);
+      } finally {
+        setChecking(false);
+      }
+    }
+    checkPublicRegister();
+  }, []);
 
   async function handleRegister() {
     if (!email || !password || !nome) {
@@ -27,14 +47,9 @@ export default function RegisterScreen({ navigation }) {
     }
 
     try {
-      const nomeUpper = nome.toUpperCase();
-      const roleAutomatica = nomeUpper === 'ADMIN' ? 'professor' : 'aluno';
-      
-      await registerUser({ email, password, nome });
-      
-      const mensagem = roleAutomatica === 'professor' 
-        ? 'Conta de Professor criada! Faça login.\n\nNome cadastrado: ADMIN'
-        : `Conta de Aluno criada! Faça login.\n\nNome cadastrado: ${nomeUpper}`;
+      await registerUser({ email, password, nome, role: 'admin_sistema' });
+
+      const mensagem = 'Conta de Admin do Sistema criada! Faça login.';
       
       Alert.alert('Sucesso', mensagem);
       await signOut(auth).catch(() => {});
@@ -44,7 +59,7 @@ export default function RegisterScreen({ navigation }) {
       }, 100);
     } catch (err) {
       console.error('Error in handleRegister:', err);
-      Alert.alert('Erro ao criar conta', err.message);
+      Alert.alert('Erro ao criar conta', getAuthErrorMessage(err, 'Não foi possível criar a conta.'));
     }
   }
 
@@ -60,6 +75,8 @@ export default function RegisterScreen({ navigation }) {
           value={nome}
           onChangeText={setNome}
         />
+
+        <Text style={styles.sectionLabel}>Tipo de usuário: Admin do Sistema</Text>
 
         <TextInput
           placeholder="E-mail"
@@ -128,6 +145,12 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     backgroundColor: theme.colors.background,
+  },
+  sectionLabel: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 10
   },
   helperText: {
     color: theme.colors.muted,

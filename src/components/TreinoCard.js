@@ -5,6 +5,7 @@ import theme from '../theme';
 import { criarSessaoTreino, marcarExercicioConcluido, finalizarSessao, buscarSessaoAtiva } from '../services/historicoService';
 import { enviarNotificacao } from '../services/notificacoesService';
 import { Alert } from '../utils/alert';
+import { getAuthErrorMessage } from '../utils/authErrors';
 
 export default function TreinoCard({ treino, onOpen, alunoId, professorId, alunoNome }) {
   const [exercicios, setExercicios] = useState(
@@ -68,7 +69,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       Alert.alert('Sucesso', 'Treino iniciado! Boa sorte! 💪');
     } catch (err) {
       console.error('Erro ao iniciar sessão:', err);
-      Alert.alert('Erro', 'Não foi possível iniciar o treino: ' + err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível iniciar o treino.'));
     } finally {
       setIniciandoSessao(false);
     }

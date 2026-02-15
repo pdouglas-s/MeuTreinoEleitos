@@ -1,15 +1,39 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
-import { login } from '../services/userService';
+import { useFocusEffect } from '@react-navigation/native';
+import { hasSystemAdmin, login } from '../services/userService';
 import { Alert } from '../utils/alert';
 import { isValidEmail } from '../utils/validation';
+import { getAuthErrorMessage } from '../utils/authErrors';
 import theme from '../theme';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showRegister, setShowRegister] = useState(false);
   const emailInvalido = email.trim().length > 0 && !isValidEmail(email);
   const loginDisabled = !email.trim() || !password || emailInvalido;
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+
+      async function checkPublicRegister() {
+        try {
+          const exists = await hasSystemAdmin();
+          if (active) setShowRegister(!exists);
+        } catch (error) {
+          console.warn('Erro ao verificar cadastro público no login:', error?.message || error);
+          if (active) setShowRegister(false);
+        }
+      }
+
+      checkPublicRegister();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   async function handleLogin() {
     if (!email || !password) return Alert.alert('Erro', 'E-mail e senha são obrigatórios');
@@ -21,10 +45,14 @@ export default function LoginScreen({ navigation }) {
         navigation.replace('ChangePassword');
         return;
       }
-      if (profile.role === 'professor') navigation.replace('ProfessorHome');
+      if (profile.role === 'admin_sistema') navigation.replace('SystemAdminHome');
+      else if (profile.role === 'admin_academia') navigation.replace('AdminAcademiaHome');
+      else if (profile.role === 'professor') navigation.replace('ProfessorHome');
       else navigation.replace('AlunoHome');
     } catch (err) {
-      Alert.alert('Falha no login', err.message);
+      const message = getAuthErrorMessage(err, 'Não foi possível fazer login. Tente novamente.');
+      console.error('Falha no login:', { code: err?.code, message: err?.message, raw: err });
+      Alert.alert('Falha no login', message);
     }
   }
 
@@ -38,8 +66,12 @@ export default function LoginScreen({ navigation }) {
         {emailInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
         <TextInput placeholder="Senha" secureTextEntry style={styles.input} value={password} onChangeText={setPassword} />
         <Button title="Entrar" onPress={handleLogin} disabled={loginDisabled} />
-        <View style={styles.divider} />
-        <Button title="Criar Conta" onPress={() => navigation.navigate('Register')} color={theme.colors.muted} />
+        {showRegister && (
+          <>
+            <View style={styles.divider} />
+            <Button title="Criar Conta" onPress={() => navigation.navigate('Register')} color={theme.colors.muted} />
+          </>
+        )}
       </View>
     </View>
   );

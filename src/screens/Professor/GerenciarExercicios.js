@@ -5,6 +5,7 @@ import { Alert } from '../../utils/alert';
 import { listAllExercicios, createExercicio, deleteExercicio, inicializarBancoExercicios, existemExerciciosPadrao, deleteExerciciosPadrao, updateExercicio } from '../../services/exerciciosService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
+import { getAuthErrorMessage } from '../../utils/authErrors';
 
 export default function GerenciarExercicios({ navigation }) {
   const { logout, profile } = useAuth();
@@ -55,7 +56,7 @@ export default function GerenciarExercicios({ navigation }) {
       setReps('');
       loadExercicios();
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o exercício.'));
     }
   }
 
@@ -65,7 +66,7 @@ export default function GerenciarExercicios({ navigation }) {
       Alert.alert('Sucesso', 'Exercício excluído');
       loadExercicios();
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o exercício.'));
     }
   }
 
@@ -95,7 +96,7 @@ export default function GerenciarExercicios({ navigation }) {
       Alert.alert('Sucesso', 'Nome do exercício atualizado');
       cancelarEdicao();
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível atualizar o exercício.'));
     }
   }
 
@@ -145,7 +146,7 @@ export default function GerenciarExercicios({ navigation }) {
       setCarregando(false);
       setProgresso(0);
       setStatusMensagem('');
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível inicializar o banco de exercícios.'));
     }
   }
 
@@ -176,7 +177,7 @@ export default function GerenciarExercicios({ navigation }) {
       setCarregando(false);
       setProgresso(0);
       setStatusMensagem('');
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir os exercícios padrão.'));
     }
   }
 
@@ -185,7 +186,7 @@ export default function GerenciarExercicios({ navigation }) {
       await logout();
       navigation.replace('Login');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao sair: ' + err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Falha ao sair.'));
     }
   }
 

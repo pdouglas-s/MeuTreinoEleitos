@@ -126,7 +126,7 @@ export function AuthProvider({ children }) {
     loading,
     token,
     isAuthenticated: !!user,
-    isProfessor: profile?.role === 'professor',
+    isProfessor: ['professor', 'admin_academia'].includes(profile?.role),
     isAluno: profile?.role === 'aluno',
     refreshToken,
     getValidToken,

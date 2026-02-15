@@ -1,165 +1,281 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function: verifica se nome é "ADMIN" (maiúsculo)
-    function isAdmin(nome) {
-      return nome == 'ADMIN';
+    function hasProfile() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
-    
-    // Helper function: verifica se usuário é professor
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function myRole() {
+      return hasProfile() ? myProfile().role : null;
+    }
+
+    function myAcademiaId() {
+      return hasProfile() ? myProfile().academia_id : null;
+    }
+
+    function isSystemAdmin() {
+      return myRole() == 'admin_sistema';
+    }
+
+    function isAcademyAdmin() {
+      return myRole() == 'admin_academia';
+    }
+
     function isProfessor() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'professor';
+      return myRole() == 'professor';
     }
 
-    // Helper function: usuário atual é o ADMIN principal
-    function isAdminUser() {
-      let me = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return me.role == 'professor' && me.nome.matches('^[Aa][Dd][Mm][Ii][Nn]$');
+    function isAcademyStaff() {
+      return isAcademyAdmin() || isProfessor();
     }
 
-    // Helper function: valida formato básico de e-mail
     function isValidEmail(email) {
       return email is string
         && email.matches('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.(com|net|org)(\\.br)?$');
     }
 
-    // Helper function: e-mail bloqueado para não ser reutilizado no sistema
     function isBlockedEmail(email) {
       return exists(/databases/$(database)/documents/emails_bloqueados/$(email));
     }
-    
-    // Coleção system: controle de administrador único
+
+    function isSameAcademia(academiaId) {
+      return academiaId is string
+        && myAcademiaId() is string
+        && academiaId == myAcademiaId();
+    }
+
+    function academiaExists(academiaId) {
+      return academiaId is string
+        && exists(/databases/$(database)/documents/academias/$(academiaId));
+    }
+
+    function treinoDocById(treinoId) {
+      return get(/databases/$(database)/documents/treinos/$(treinoId)).data;
+    }
+
+    function canReadTreinoData(treinoData) {
+      return request.auth != null && (
+        isSystemAdmin()
+        || treinoData.is_padrao == true
+        || treinoData.aluno_id == request.auth.uid
+        || (isProfessor() && isSameAcademia(treinoData.academia_id))
+      );
+    }
+
     match /system/{docId} {
-      // admin_lock só pode ser criado uma vez, nunca deletado
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && docId == 'admin_lock' && !exists(/databases/$(database)/documents/system/admin_lock);
+      allow read: if docId == 'admin_lock' || request.auth != null;
+      allow create: if request.auth != null
+        && docId == 'admin_lock'
+        && !exists(/databases/$(database)/documents/system/admin_lock)
+        && request.resource.data.admin_uid == request.auth.uid;
       allow update, delete: if false;
     }
 
-    // Lista de e-mails bloqueados após exclusão de perfil
+    match /academias/{academiaId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isSystemAdmin();
+    }
+
     match /emails_bloqueados/{emailId} {
-      allow read: if request.auth != null && isAdminUser();
+      allow read: if request.auth != null && isSystemAdmin();
       allow create: if request.auth != null
-        && isAdminUser()
+        && isSystemAdmin()
         && request.resource.data.keys().hasAll(['email', 'blocked_at', 'blocked_by', 'reason'])
         && request.resource.data.email == emailId;
       allow update: if false;
-      allow delete: if request.auth != null && isAdminUser();
+      allow delete: if request.auth != null && isSystemAdmin();
     }
-    
-    // users: professors can read all, alunos can read only their doc
+
     match /users/{userId} {
       allow read: if request.auth != null && (
-        request.auth.uid == userId 
-        || isProfessor()
+        request.auth.uid == userId
+        || isSystemAdmin()
+        || (isAcademyStaff() && isSameAcademia(resource.data.academia_id))
       );
-      
-      // Criação de usuário: auto-registro ou professor criando aluno
-      allow create: if request.auth != null 
+
+      allow create: if request.auth != null
         && request.resource.data.keys().hasAll(['nome', 'email', 'role', 'primeiro_acesso'])
         && isValidEmail(request.resource.data.email)
         && !isBlockedEmail(request.resource.data.email)
         && (
-          // Auto-registro: uid autenticado = uid do documento
-          (request.auth.uid == userId && (
-            // ADMIN pode ser professor
-            (request.resource.data.nome == 'ADMIN' && request.resource.data.role == 'professor')
-            // Outros nomes só podem ser alunos
-            || (request.resource.data.nome != 'ADMIN' && request.resource.data.role == 'aluno')
-          ))
-          // Professor criando aluno para outro usuário
-          || (request.auth.uid != userId 
-            && isProfessor() 
-            && request.resource.data.role == 'aluno'
-            && request.resource.data.nome != 'ADMIN'
+          (
+            request.auth.uid == userId
+            && request.resource.data.role == 'admin_sistema'
+            && (
+              !exists(/databases/$(database)/documents/system/admin_lock)
+              || get(/databases/$(database)/documents/system/admin_lock).data.admin_uid == userId
+            )
           )
-          // ADMIN criando professor para outro usuário
-          || (request.auth.uid != userId
-            && isAdminUser()
+          || (
+            request.auth.uid != userId
+            && isSystemAdmin()
+            && request.resource.data.role == 'admin_academia'
+            && academiaExists(request.resource.data.academia_id)
+          )
+          || (
+            request.auth.uid != userId
+            && isAcademyStaff()
+            && request.resource.data.role == 'aluno'
+            && isSameAcademia(request.resource.data.academia_id)
+          )
+          || (
+            request.auth.uid != userId
+            && isAcademyAdmin()
             && request.resource.data.role == 'professor'
-            && request.resource.data.nome != 'ADMIN'
+            && isSameAcademia(request.resource.data.academia_id)
           )
         );
-      
-      allow update: if request.auth != null && (
-        request.auth.uid == userId
-        || isProfessor()
-      ) && (
-        // Nome deve permanecer inalterado
-        request.resource.data.nome == resource.data.nome
-        // Se alterar email, deve manter formato válido
-        && (!request.resource.data.keys().hasAny(['email']) || isValidEmail(request.resource.data.email))
-        && (!request.resource.data.keys().hasAny(['email']) || !isBlockedEmail(request.resource.data.email))
-        // Role deve permanecer inalterada
+
+      allow update: if request.auth != null
+        && (
+          request.auth.uid == userId
+          || isSystemAdmin()
+          || (isAcademyStaff() && isSameAcademia(resource.data.academia_id))
+        )
+        && request.resource.data.nome == resource.data.nome
         && request.resource.data.role == resource.data.role
-      );
-      
-      // Fallback: ADMIN pode excluir perfil de professor (conta Auth pode permanecer)
+        && (
+          !request.resource.data.keys().hasAny(['academia_id'])
+          || request.resource.data.academia_id == resource.data.academia_id
+        )
+        && (
+          !request.resource.data.keys().hasAny(['email'])
+          || (
+            isValidEmail(request.resource.data.email)
+            && !isBlockedEmail(request.resource.data.email)
+          )
+        );
+
       allow delete: if request.auth != null
-        && isAdminUser()
-        && resource.data.role == 'professor'
-        && resource.data.nome != 'ADMIN';
+        && (
+          (
+            isSystemAdmin()
+            && resource.data.role != 'admin_sistema'
+          )
+          || (
+            isAcademyAdmin()
+            && resource.data.role == 'professor'
+            && isSameAcademia(resource.data.academia_id)
+          )
+        );
     }
 
-    // treinos: aluno só lê os seus; professor cria/edita/remove treinos próprios
     match /treinos/{docId} {
-      allow read: if request.auth != null && (
-        isProfessor()
-        || resource.data.aluno_id == request.auth.uid
+      allow read: if canReadTreinoData(resource.data);
+
+      allow create: if request.auth != null && (
+        (
+          isProfessor()
+          && request.resource.data.professor_id == request.auth.uid
+          && isSameAcademia(request.resource.data.academia_id)
+          && request.resource.data.is_padrao != true
+        )
+        || (
+          isSystemAdmin()
+          && request.resource.data.is_padrao == true
+        )
       );
-      allow create: if request.auth != null
-        && isProfessor()
-        && request.resource.data.professor_id == request.auth.uid;
-      allow update, delete: if request.auth != null
-        && isProfessor()
-        && resource.data.professor_id == request.auth.uid;
+
+      allow update: if request.auth != null && (
+        (
+          isSystemAdmin()
+          && resource.data.is_padrao == true
+        )
+        || (
+          isProfessor()
+          && resource.data.professor_id == request.auth.uid
+          && isSameAcademia(resource.data.academia_id)
+          && resource.data.bloqueado_exclusao != true
+        )
+        || (
+          isProfessor()
+          && resource.data.is_padrao == true
+          && request.resource.data.is_padrao == false
+          && request.resource.data.origem_padrao == true
+          && request.resource.data.bloqueado_exclusao == true
+          && request.resource.data.professor_id == request.auth.uid
+          && isSameAcademia(request.resource.data.academia_id)
+        )
+      );
+
+      allow delete: if request.auth != null
+        && resource.data.bloqueado_exclusao != true
+        && (
+          (isSystemAdmin() && resource.data.is_padrao == true)
+          || (
+            isProfessor()
+            && resource.data.professor_id == request.auth.uid
+            && isSameAcademia(resource.data.academia_id)
+            && resource.data.is_padrao != true
+          )
+        );
     }
 
-    // treino_itens: aluno só lê itens do seu treino; professor gerencia itens de treinos próprios
     match /treino_itens/{docId} {
-      allow read: if request.auth != null && (
-        isProfessor()
-        || (resource.data.treino_id != null && get(/databases/$(database)/documents/treinos/$(resource.data.treino_id)).data.aluno_id == request.auth.uid)
-      );
+      allow read: if request.auth != null
+        && resource.data.treino_id != null
+        && canReadTreinoData(treinoDocById(resource.data.treino_id));
       allow create: if request.auth != null
         && isProfessor()
         && request.resource.data.treino_id != null
-        && get(/databases/$(database)/documents/treinos/$(request.resource.data.treino_id)).data.professor_id == request.auth.uid;
+        && treinoDocById(request.resource.data.treino_id).professor_id == request.auth.uid
+        && isSameAcademia(treinoDocById(request.resource.data.treino_id).academia_id);
       allow update, delete: if request.auth != null
         && isProfessor()
         && resource.data.treino_id != null
-        && get(/databases/$(database)/documents/treinos/$(resource.data.treino_id)).data.professor_id == request.auth.uid;
+        && treinoDocById(resource.data.treino_id).professor_id == request.auth.uid
+        && isSameAcademia(treinoDocById(resource.data.treino_id).academia_id);
     }
 
-    // avaliacoes: only professor or owner aluno can read/write
     match /avaliacoes/{docId} {
       allow read, write: if request.auth != null && (
-        resource.data.aluno_id == request.auth.uid || isProfessor()
+        isSystemAdmin()
+        || resource.data.aluno_id == request.auth.uid
+        || (
+          isAcademyStaff()
+          && resource.data.aluno_id is string
+          && isSameAcademia(get(/databases/$(database)/documents/users/$(resource.data.aluno_id)).data.academia_id)
+        )
       );
     }
 
-    // exercicios: banco de exercícios - professores podem criar/editar, todos podem ler
     match /exercicios/{docId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && isProfessor();
+      allow write: if request.auth != null && isAcademyStaff();
     }
 
-    // sessoes_treino: histórico de treinos - aluno pode criar/editar suas sessões, professor pode ler todas
     match /sessoes_treino/{docId} {
       allow read: if request.auth != null && (
-        isProfessor()
+        isSystemAdmin()
+        || (isAcademyStaff() && isSameAcademia(resource.data.academia_id))
         || resource.data.aluno_id == request.auth.uid
       );
-      allow create: if request.auth != null && request.resource.data.aluno_id == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.aluno_id == request.auth.uid
+        && request.resource.data.academia_id is string;
       allow update: if request.auth != null && resource.data.aluno_id == request.auth.uid;
       allow delete: if false;
     }
 
-    // notificacoes: professor recebe notificações dos alunos
     match /notificacoes/{docId} {
       allow read: if request.auth != null && (
+        isSystemAdmin()
+        || (
+          isAcademyStaff()
+          && resource.data.professor_id is string
+          && isSameAcademia(get(/databases/$(database)/documents/users/$(resource.data.professor_id)).data.academia_id)
+        )
+        || (
+          resource.data.aluno_id is string
+          && resource.data.aluno_id == request.auth.uid
+        )
+        ||
         resource.data.professor_id == request.auth.uid
-        || resource.data.aluno_id == request.auth.uid
       );
       allow create: if request.auth != null;
       allow update: if request.auth != null

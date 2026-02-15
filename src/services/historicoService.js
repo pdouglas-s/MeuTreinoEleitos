@@ -1,15 +1,19 @@
 import { db } from '../firebase/config';
-import { collection, addDoc, query, where, getDocs, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, orderBy, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
 /**
  * Cria uma sessão de treino (treino do dia)
  */
 export async function criarSessaoTreino(treinoId, alunoId, professorId) {
+  const treinoSnap = await getDoc(doc(db, 'treinos', treinoId));
+  const academiaId = treinoSnap.exists() ? (treinoSnap.data()?.academia_id || null) : null;
+
   const sessaoRef = collection(db, 'sessoes_treino');
   const docRef = await addDoc(sessaoRef, {
     treino_id: treinoId,
     aluno_id: alunoId,
     professor_id: professorId,
+    academia_id: academiaId,
     data_inicio: new Date(),
     data_fim: null,
     status: 'em_andamento', // em_andamento, finalizado

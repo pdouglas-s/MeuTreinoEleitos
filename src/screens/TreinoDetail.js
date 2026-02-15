@@ -1,21 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import theme from '../theme';
 import { Alert } from '../utils/alert';
 import { listItensByTreino, addItemToTreino, deleteItem } from '../services/treinoItensService';
-import { updateTreino, deleteTreino } from '../services/treinoService';
+import { updateTreino, deleteTreino, duplicateTreinoParaAluno } from '../services/treinoService';
 import { listAllExercicios } from '../services/exerciciosService';
 import { listAllAlunos } from '../services/userService';
 import { enviarNotificacao } from '../services/notificacoesService';
 import { auth } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
+import { getAuthErrorMessage } from '../utils/authErrors';
 
 export default function TreinoDetail({ route, navigation }) {
   const { treino } = route.params;
   const { profile } = useAuth();
-  const isProfessor = profile?.role === 'professor';
+  const isProfessor = ['professor', 'admin_academia', 'admin_sistema'].includes(profile?.role);
   const [itens, setItens] = useState([]);
   const [loading, setLoading] = useState(true);
+  const originalTreinoRef = useRef({
+    nome_treino: treino.nome_treino || '',
+    aluno_id: treino.aluno_id || ''
+  });
+  const originalItensRef = useRef(null);
 
   // campos para novo item
   const [exNome, setExNome] = useState('');
@@ -67,11 +73,47 @@ export default function TreinoDetail({ route, navigation }) {
     try {
       const list = await listItensByTreino(treino.id);
       setItens(list);
+      if (originalItensRef.current === null) {
+        originalItensRef.current = list.map((item) => ({
+          exercicio_id: item.exercicio_id,
+          exercicio_nome: item.exercicio_nome,
+          series: item.series,
+          repeticoes: item.repeticoes,
+          carga: item.carga,
+          descanso: item.descanso
+        }));
+      }
     } catch (err) {
       console.warn('Erro ao carregar itens', err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function restoreOriginalTreinoSnapshot() {
+    const originalTreino = originalTreinoRef.current;
+    const originalItens = originalItensRef.current || [];
+
+    await updateTreino(treino.id, {
+      nome_treino: originalTreino.nome_treino,
+      aluno_id: originalTreino.aluno_id
+    });
+
+    const itensAtuais = await listItensByTreino(treino.id);
+    await Promise.all(itensAtuais.map((item) => deleteItem(item.id)));
+    await Promise.all(
+      originalItens.map((item) =>
+        addItemToTreino({
+          treino_id: treino.id,
+          exercicio_id: item.exercicio_id,
+          exercicio_nome: item.exercicio_nome,
+          series: item.series,
+          repeticoes: item.repeticoes,
+          carga: item.carga,
+          descanso: item.descanso
+        })
+      )
+    );
   }
 
   async function handleAddItem() {
@@ -83,7 +125,7 @@ export default function TreinoDetail({ route, navigation }) {
       loadItens();
       Alert.alert('Sucesso', 'Item adicionado');
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível adicionar o exercício.'));
     }
   }
 
@@ -94,8 +136,46 @@ export default function TreinoDetail({ route, navigation }) {
       loadItens();
       Alert.alert('Sucesso', 'Item removido');
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível remover o exercício.'));
     }
+  }
+
+  function confirmCreateNovoVinculo(onConfirm) {
+    const mensagem = 'Ao continuar, será criado um novo vínculo para o aluno selecionado e o vínculo anterior será preservado. Deseja continuar?';
+
+    if (window.confirm) {
+      if (window.confirm(mensagem)) {
+        onConfirm();
+      }
+      return;
+    }
+
+    Alert.alert('Confirmar novo vínculo', mensagem, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Criar vínculo', onPress: onConfirm }
+    ]);
+  }
+
+  async function handleCreateNovoVinculo() {
+    const { id: novoTreinoId } = await duplicateTreinoParaAluno(treino.id, {
+      aluno_id: alunoSelecionado,
+      nome_treino: editNome
+    });
+
+    await restoreOriginalTreinoSnapshot();
+
+    try {
+      await enviarNotificacao(auth.currentUser?.uid, alunoSelecionado, 'treino_associado', {
+        treino_id: novoTreinoId,
+        treino_nome: editNome,
+        professor_nome: profile?.nome || 'Professor'
+      });
+    } catch (notifyErr) {
+      console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
+    }
+
+    Alert.alert('Sucesso', 'Novo vínculo criado para o aluno selecionado sem alterar o vínculo anterior');
+    navigation.goBack();
   }
 
   async function handleUpdateTreino() {
@@ -103,12 +183,27 @@ export default function TreinoDetail({ route, navigation }) {
     if (!editNome) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
       const alunoAnterior = treino.aluno_id || '';
+
+      if (alunoSelecionado && alunoSelecionado !== alunoAnterior) {
+        confirmCreateNovoVinculo(() => {
+          handleCreateNovoVinculo().catch((err) => {
+            Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o novo vínculo do treino.'));
+          });
+        });
+        return;
+      }
+
       const updates = { nome_treino: editNome };
       if (alunoSelecionado !== treino.aluno_id) {
         updates.aluno_id = alunoSelecionado;
       }
-      await updateTreino(treino.id, updates);
+      const result = await updateTreino(treino.id, updates);
       treino.aluno_id = alunoSelecionado; // Atualizar objeto local
+      treino.nome_treino = editNome;
+
+      const mensagemSucesso = result?.convertedFromStandard
+        ? 'Treino padrão convertido para treino da sua academia e atualizado com sucesso'
+        : 'Treino atualizado';
 
       if (alunoSelecionado && alunoSelecionado !== alunoAnterior) {
         try {
@@ -122,10 +217,10 @@ export default function TreinoDetail({ route, navigation }) {
         }
       }
 
-      Alert.alert('Sucesso', 'Treino atualizado');
+      Alert.alert('Sucesso', mensagemSucesso);
       navigation.setOptions({ title: editNome });
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível atualizar o treino.'));
     }
   }
 
@@ -136,7 +231,7 @@ export default function TreinoDetail({ route, navigation }) {
       Alert.alert('Sucesso', 'Treino excluído');
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o treino.'));
     }
   }
 
@@ -261,6 +356,12 @@ export default function TreinoDetail({ route, navigation }) {
               ))}
             </select>
           </View>
+
+          {alunoSelecionado && alunoSelecionado !== (treino.aluno_id || '') && (
+            <Text style={styles.warningText}>
+              Ao salvar, será criado um novo vínculo para o aluno selecionado. O vínculo anterior permanecerá inalterado.
+            </Text>
+          )}
           
           <Button title="💾 Salvar alterações" onPress={handleUpdateTreino} color="#059669" />
         </View>
@@ -287,6 +388,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing(1.5)
   },
   mutedText: { color: theme.colors.muted, marginBottom: 10 },
+  warningText: {
+    color: '#b45309',
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    borderRadius: theme.radii.sm,
+    padding: theme.spacing(1),
+    marginBottom: theme.spacing(1)
+  },
   section: { fontWeight: '600', marginTop: theme.spacing(1.5), marginBottom: theme.spacing(0.5), color: theme.colors.text },
   input: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: theme.radii.sm, padding: theme.spacing(1.5), marginBottom: theme.spacing(1), backgroundColor: theme.colors.background },
   itemRow: { 

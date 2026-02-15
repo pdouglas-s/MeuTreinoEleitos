@@ -4,12 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
-import { createAluno, createProfessor, deleteProfessorProfile, listAllAlunos, listAllProfessores, unblockBlockedEmail } from '../../services/userService';
+import { createAcademia, createAcademiaAdmin, createAluno, createProfessor, deleteProfessorProfile, listAcademias, listAllAlunos, listAllProfessores, unblockBlockedEmail } from '../../services/userService';
 import { createTreino, listTreinosByProfessor, deleteTreino } from '../../services/treinoService';
 import { contarNaoLidas, enviarNotificacao } from '../../services/notificacoesService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isValidEmail } from '../../utils/validation';
+import { getAuthErrorMessage } from '../../utils/authErrors';
 
 export default function ProfessorHome({ navigation }) {
   const { logout, profile } = useAuth();
@@ -19,6 +20,11 @@ export default function ProfessorHome({ navigation }) {
   const [emailProfessor, setEmailProfessor] = useState('');
   const [emailDesbloqueio, setEmailDesbloqueio] = useState('');
   const [professores, setProfessores] = useState([]);
+  const [academias, setAcademias] = useState([]);
+  const [nomeAcademia, setNomeAcademia] = useState('');
+  const [nomeAdminAcademia, setNomeAdminAcademia] = useState('');
+  const [emailAdminAcademia, setEmailAdminAcademia] = useState('');
+  const [academiaSelecionadaAdmin, setAcademiaSelecionadaAdmin] = useState('');
 
   // Treinos
   const [nomeTreino, setNomeTreino] = useState('');
@@ -27,13 +33,24 @@ export default function ProfessorHome({ navigation }) {
   const [alunos, setAlunos] = useState([]);
   const [alunosMap, setAlunosMap] = useState({});
   const [notifCount, setNotifCount] = useState(0);
-  const isAdmin = profile?.role === 'professor' && String(profile?.nome || '').trim().toUpperCase() === 'ADMIN';
+  const isSystemAdmin = profile?.role === 'admin_sistema';
+  const isAcademyAdmin = profile?.role === 'admin_academia';
+  const isProfessor = profile?.role === 'professor';
+  const canManageAcademyUsers = isAcademyAdmin;
+  const canManageTreinos = isProfessor;
+  const pageTitle = isAcademyAdmin ? 'Área do Admin da Academia' : 'Área do Professor';
+  const pageSubtitle = isAcademyAdmin
+    ? `Gestão da academia • ${profile?.nome || ''}`
+    : `Bem-vindo, ${profile?.nome || ''}`;
   const emailAlunoInvalido = email.trim().length > 0 && !isValidEmail(email);
   const emailProfessorInvalido = emailProfessor.trim().length > 0 && !isValidEmail(emailProfessor);
   const emailDesbloqueioInvalido = emailDesbloqueio.trim().length > 0 && !isValidEmail(emailDesbloqueio);
+  const emailAdminAcademiaInvalido = emailAdminAcademia.trim().length > 0 && !isValidEmail(emailAdminAcademia);
   const createAlunoDisabled = !nome.trim() || !email.trim() || emailAlunoInvalido;
   const createProfessorDisabled = !nomeProfessor.trim() || !emailProfessor.trim() || emailProfessorInvalido;
   const desbloquearEmailDisabled = !emailDesbloqueio.trim() || emailDesbloqueioInvalido;
+  const createAcademiaDisabled = !nomeAcademia.trim();
+  const createAdminAcademiaDisabled = !nomeAdminAcademia.trim() || !emailAdminAcademia.trim() || emailAdminAcademiaInvalido || !academiaSelecionadaAdmin;
   const createTreinoParaAlunoDisabled = !nomeTreino.trim() || !alunoSelecionadoTreino;
   const treinosModeloCount = treinos.filter((item) => !item.aluno_id).length;
   const treinosComAlunoCount = treinos.filter((item) => !!item.aluno_id).length;
@@ -41,18 +58,37 @@ export default function ProfessorHome({ navigation }) {
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (uid) {
-      loadTreinos(uid);
-      loadAlunos();
-      loadNotificacoes(uid);
-      if (isAdmin) {
-        loadProfessores();
+      if (isSystemAdmin) {
+        loadAcademias();
+      } else {
+        if (canManageTreinos) {
+          loadTreinos(uid);
+        } else {
+          setTreinos([]);
+        }
+        loadAlunos();
+        loadNotificacoes(uid);
+        if (canManageAcademyUsers) {
+          loadProfessores();
+        }
       }
       
       // Atualizar contador a cada 30 segundos
-      const interval = setInterval(() => loadNotificacoes(uid), 30000);
+      const interval = setInterval(() => {
+        if (!isSystemAdmin) loadNotificacoes(uid);
+      }, 30000);
       return () => clearInterval(interval);
     }
-  }, [isAdmin]);
+  }, [isSystemAdmin, canManageAcademyUsers, canManageTreinos]);
+
+  async function loadAcademias() {
+    try {
+      const list = await listAcademias();
+      setAcademias(list);
+    } catch (err) {
+      console.warn('Erro ao carregar academias', err?.message || err);
+    }
+  }
 
   async function loadNotificacoes(professorId) {
     try {
@@ -70,7 +106,9 @@ export default function ProfessorHome({ navigation }) {
       list.sort((a, b) => a.nome_treino.localeCompare(b.nome_treino));
       setTreinos(list);
     } catch (err) {
-      console.warn('Erro ao carregar treinos', err.message);
+      setTreinos([]);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar os treinos.'));
+      console.warn('Erro ao carregar treinos', err?.message || err);
     }
   }
 
@@ -108,7 +146,44 @@ export default function ProfessorHome({ navigation }) {
       setNome('');
       setEmail('');
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o aluno.'));
+    }
+  }
+
+  async function handleCreateAcademia() {
+    if (!nomeAcademia.trim()) return Alert.alert('Erro', 'Nome da academia é obrigatório');
+    try {
+      await createAcademia({ nome: nomeAcademia });
+      setNomeAcademia('');
+      await loadAcademias();
+      Alert.alert('Sucesso', 'Academia cadastrada com sucesso');
+    } catch (err) {
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível cadastrar a academia.'));
+    }
+  }
+
+  async function handleCreateAdminAcademia() {
+    if (!nomeAdminAcademia.trim() || !emailAdminAcademia.trim()) {
+      return Alert.alert('Erro', 'Nome e e-mail são obrigatórios');
+    }
+    if (!academiaSelecionadaAdmin) {
+      return Alert.alert('Erro', 'Selecione uma academia');
+    }
+    if (!isValidEmail(emailAdminAcademia)) {
+      return Alert.alert('Erro', 'Digite um e-mail válido');
+    }
+    try {
+      await createAcademiaAdmin({
+        nome: nomeAdminAcademia,
+        email: emailAdminAcademia,
+        academia_id: academiaSelecionadaAdmin
+      });
+      setNomeAdminAcademia('');
+      setEmailAdminAcademia('');
+      setAcademiaSelecionadaAdmin('');
+      Alert.alert('Sucesso', 'Admin da academia criado com senha padrão e primeiro acesso habilitado');
+    } catch (err) {
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o admin da academia.'));
     }
   }
 
@@ -122,7 +197,7 @@ export default function ProfessorHome({ navigation }) {
       setEmailProfessor('');
       await loadProfessores();
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o professor.'));
     }
   }
 
@@ -132,7 +207,7 @@ export default function ProfessorHome({ navigation }) {
       setProfessores(prev => prev.filter(item => item.id !== professorId));
       Alert.alert('Sucesso', 'Professor removido do Firestore e e-mail bloqueado no sistema');
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o professor.'));
     }
   }
 
@@ -144,7 +219,7 @@ export default function ProfessorHome({ navigation }) {
       setEmailDesbloqueio('');
       Alert.alert('Sucesso', 'E-mail desbloqueado no sistema');
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível desbloquear o e-mail.'));
     }
   }
 
@@ -165,7 +240,14 @@ export default function ProfessorHome({ navigation }) {
     if (!nomeTreino) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
       const professor_id = auth.currentUser?.uid;
-      const { id } = await createTreino({ aluno_id: alunoId, professor_id, nome_treino: nomeTreino, ativo: true });
+      const { id } = await createTreino({
+        aluno_id: alunoId,
+        professor_id,
+        nome_treino: nomeTreino,
+        ativo: true,
+        academia_id: profile?.academia_id || null,
+        is_padrao: false
+      });
 
       if (alunoId) {
         try {
@@ -179,16 +261,12 @@ export default function ProfessorHome({ navigation }) {
         }
       }
 
-      const novo = { id, aluno_id: alunoId, professor_id, nome_treino: nomeTreino, ativo: true };
-      const novaLista = [novo, ...treinos];
-      // Ordenar alfabeticamente
-      novaLista.sort((a, b) => a.nome_treino.localeCompare(b.nome_treino));
-      setTreinos(novaLista);
       setNomeTreino('');
       setAlunoSelecionadoTreino('');
+      await loadTreinos(professor_id);
       Alert.alert('Sucesso', alunoId ? 'Treino criado para o aluno selecionado' : 'Treino modelo criado (sem aluno)');
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o treino.'));
     }
   }
 
@@ -202,7 +280,7 @@ export default function ProfessorHome({ navigation }) {
       setTreinos(treinos.filter(t => t.id !== treino_id));
       Alert.alert('Sucesso', 'Treino excluído');
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o treino.'));
     }
   }
 
@@ -224,7 +302,7 @@ export default function ProfessorHome({ navigation }) {
       await logout();
       navigation.replace('Login');
     } catch (err) {
-      Alert.alert('Erro', 'Falha ao sair: ' + err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Falha ao sair.'));
     }
   }
 
@@ -241,8 +319,8 @@ export default function ProfessorHome({ navigation }) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Área do Professor</Text>
-          <Text style={styles.subtitle}>Bem-vindo, {profile?.nome}</Text>
+          <Text style={styles.title}>{pageTitle}</Text>
+          <Text style={styles.subtitle}>{pageSubtitle}</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity 
@@ -265,11 +343,11 @@ export default function ProfessorHome({ navigation }) {
         </View>
       </View>
 
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
+      {!isSystemAdmin && <View style={styles.statsRow}>
+        {isAcademyAdmin && <View style={styles.statCard}>
           <Text style={styles.statValue}>{alunos.length}</Text>
           <Text style={styles.statLabel}>Alunos</Text>
-        </View>
+        </View>}
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{treinos.length}</Text>
           <Text style={styles.statLabel}>Treinos</Text>
@@ -278,16 +356,54 @@ export default function ProfessorHome({ navigation }) {
           <Text style={styles.statValue}>{notifCount}</Text>
           <Text style={styles.statLabel}>Notificações</Text>
         </View>
-      </View>
+      </View>}
 
-      <TouchableOpacity 
+      {!isSystemAdmin && isAcademyAdmin && <TouchableOpacity 
         style={styles.bancoExerciciosBtn} 
         onPress={() => navigation.navigate('GerenciarExercicios')}
       >
         <Text style={styles.bancoExerciciosText}>📚 Gerenciar Banco de Exercícios</Text>
-      </TouchableOpacity>
+      </TouchableOpacity>}
 
-      <View style={styles.cardBlock}>
+      {isSystemAdmin && (
+        <View style={styles.cardBlock}>
+          <Text style={styles.blockTitle}>Administração do Sistema</Text>
+          <Text style={styles.section}>Cadastrar Academia</Text>
+          <TextInput placeholder="Nome da academia" style={styles.input} value={nomeAcademia} onChangeText={setNomeAcademia} />
+          <Button title="Cadastrar Academia" onPress={handleCreateAcademia} disabled={createAcademiaDisabled} />
+
+          <Text style={[styles.section, { marginTop: 12 }]}>Cadastrar Admin da Academia</Text>
+          <TextInput placeholder="Nome do admin da academia" style={styles.input} value={nomeAdminAcademia} onChangeText={setNomeAdminAcademia} />
+          <TextInput
+            placeholder="E-mail do admin da academia"
+            style={[styles.input, emailAdminAcademiaInvalido && styles.inputError]}
+            value={emailAdminAcademia}
+            onChangeText={setEmailAdminAcademia}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <View style={styles.pickerContainer}>
+            <Picker selectedValue={academiaSelecionadaAdmin} onValueChange={setAcademiaSelecionadaAdmin} style={styles.picker}>
+              <Picker.Item label="Selecione uma academia" value="" />
+              {academias.map((academia) => (
+                <Picker.Item key={academia.id} label={academia.nome} value={academia.id} />
+              ))}
+            </Picker>
+          </View>
+          <Button title="Criar Admin da Academia" onPress={handleCreateAdminAcademia} disabled={createAdminAcademiaDisabled} />
+
+          <Text style={[styles.section, { marginTop: 12 }]}>Academias cadastradas</Text>
+          {academias.length === 0 && <Text style={styles.emptyHint}>Nenhuma academia cadastrada.</Text>}
+          {academias.map((academia) => (
+            <View key={academia.id} style={styles.treinoRow}>
+              <Text style={{ fontSize: 15, color: theme.colors.text, flex: 1 }}>{academia.nome}</Text>
+              <Text style={{ fontSize: 11, color: theme.colors.muted }}>{academia.id}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {isAcademyAdmin && <View style={styles.cardBlock}>
         <Text style={styles.blockTitle}>Cadastro de Aluno</Text>
         <Text style={styles.blockHint}>Crie alunos com senha padrão para início rápido.</Text>
         <TextInput placeholder="Nome do aluno" style={styles.input} value={nome} onChangeText={setNome} />
@@ -295,9 +411,9 @@ export default function ProfessorHome({ navigation }) {
         <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
         {emailAlunoInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
         <Button title="Criar Aluno" onPress={handleCreateAluno} disabled={createAlunoDisabled} />
-      </View>
+      </View>}
 
-      {isAdmin && (
+      {canManageAcademyUsers && (
         <View style={styles.cardBlock}>
           <Text style={styles.blockTitle}>Administração de Professores</Text>
           <Text style={styles.section}>Criar Professor</Text>
@@ -340,7 +456,7 @@ export default function ProfessorHome({ navigation }) {
         </View>
       )}
 
-      <View style={styles.cardBlock}>
+      {!isSystemAdmin && canManageTreinos && <View style={styles.cardBlock}>
         <Text style={styles.blockTitle}>Montagem de Ficha</Text>
         <Text style={styles.blockHint}>Crie treino modelo ou vincule diretamente a um aluno cadastrado.</Text>
         <TextInput placeholder="Nome do treino" style={styles.input} value={nomeTreino} onChangeText={setNomeTreino} />
@@ -368,9 +484,9 @@ export default function ProfessorHome({ navigation }) {
           <Text style={styles.quickInfoText}>📋 Modelos: {treinosModeloCount}</Text>
           <Text style={styles.quickInfoText}>👤 Vinculados: {treinosComAlunoCount}</Text>
         </View>
-      </View>
+      </View>}
 
-      <View style={styles.cardBlock}>
+      {!isSystemAdmin && canManageTreinos && <View style={styles.cardBlock}>
         <Text style={styles.blockTitle}>Seus Treinos</Text>
         <FlatList
           data={treinos}
@@ -380,8 +496,8 @@ export default function ProfessorHome({ navigation }) {
               <TouchableOpacity style={{ flex: 1 }} onPress={() => handleSelectTreino(item)}>
                 <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome_treino}</Text>
                 <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 2 }}>
-                  {item.aluno_id && alunosMap[item.aluno_id] 
-                    ? `👤 ${alunosMap[item.aluno_id]}` 
+                  {item.aluno_id
+                    ? '👤 Treino vinculado a aluno'
                     : '📋 Treino modelo (sem aluno)'}
                 </Text>
               </TouchableOpacity>
@@ -392,7 +508,7 @@ export default function ProfessorHome({ navigation }) {
           )}
         />
         {treinos.length === 0 && <Text style={styles.emptyHint}>Nenhum treino criado ainda.</Text>}
-      </View>
+      </View>}
     </View>
   );
 }

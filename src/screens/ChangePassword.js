@@ -6,6 +6,7 @@ import { auth } from '../firebase/config';
 import { db } from '../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
 import { isValidPassword, MIN_PASSWORD_LENGTH } from '../utils/validation';
+import { getAuthErrorMessage } from '../utils/authErrors';
 import theme from '../theme';
 
 export default function ChangePassword({ navigation }) {
@@ -34,10 +35,12 @@ export default function ChangePassword({ navigation }) {
       }
 
       Alert.alert('Sucesso', 'Senha alterada');
-      if (role === 'professor') navigation.replace('ProfessorHome');
+      if (role === 'admin_sistema') navigation.replace('SystemAdminHome');
+      else if (role === 'admin_academia') navigation.replace('AdminAcademiaHome');
+      else if (role === 'professor') navigation.replace('ProfessorHome');
       else navigation.replace('AlunoHome');
     } catch (err) {
-      Alert.alert('Erro', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível alterar a senha.'));
     }
   }
 
