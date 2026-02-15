@@ -4,10 +4,12 @@ jest.mock('firebase/firestore', () => ({
   addDoc: jest.fn(),
   getDocs: jest.fn(),
   query: jest.fn(),
-  where: jest.fn()
+  where: jest.fn(),
+  doc: jest.fn(),
+  deleteDoc: jest.fn()
 }));
 
-const { addDoc, getDocs } = require('firebase/firestore');
+const { addDoc, getDocs, doc, deleteDoc } = require('firebase/firestore');
 const itensService = require('../src/services/treinoItensService');
 
 describe('treinoItensService', () => {
@@ -28,5 +30,28 @@ describe('treinoItensService', () => {
     const res = await itensService.listItensByTreino('t1');
     expect(getDocs).toHaveBeenCalled();
     expect(res).toEqual([{ id: 'i1', exercicio_nome: 'Supino' }]);
+  });
+
+  test('addItemToTreino propagates permission-denied error', async () => {
+    const permissionError = new Error('Missing or insufficient permissions.');
+    permissionError.code = 'permission-denied';
+    addDoc.mockRejectedValue(permissionError);
+
+    await expect(
+      itensService.addItemToTreino({ treino_id: 't1', exercicio_nome: 'Supino' })
+    ).rejects.toMatchObject({
+      code: 'permission-denied'
+    });
+  });
+
+  test('deleteItem propagates permission-denied error', async () => {
+    doc.mockReturnValue({ id: 'i1' });
+    const permissionError = new Error('Missing or insufficient permissions.');
+    permissionError.code = 'permission-denied';
+    deleteDoc.mockRejectedValue(permissionError);
+
+    await expect(itensService.deleteItem('i1')).rejects.toMatchObject({
+      code: 'permission-denied'
+    });
   });
 });
