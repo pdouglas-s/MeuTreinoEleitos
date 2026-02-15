@@ -157,7 +157,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       <View style={styles.headerRow}>
         <Text style={styles.title}>{treino.nome_treino}</Text>
         <View style={styles.statusRow}>
-          {sessaoId && <Ionicons name="fitness" size={18} color="#10b981" style={{ marginRight: 6 }} />}
+          {sessaoId && <Ionicons name="fitness" size={18} color={theme.colors.primary} style={{ marginRight: 6 }} />}
           <Text style={styles.progress}>{`${doneCount}/${exercicios.length}`}</Text>
         </View>
       </View>
@@ -169,10 +169,10 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
           disabled={iniciandoSessao}
         >
           {iniciandoSessao ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={theme.colors.card} />
           ) : (
             <>
-              <Ionicons name="play-circle" size={18} color="#fff" />
+              <Ionicons name="play-circle" size={18} color={theme.colors.card} />
               <Text style={styles.startText}>  Iniciar Treino do Dia</Text>
             </>
           )}
@@ -191,9 +191,9 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
               disabled={!sessaoId}
             >
               {item.done ? (
-                <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+                <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
               ) : (
-                <Ionicons name="ellipse-outline" size={24} color={sessaoId ? "#9ca3af" : "#d1d5db"} />
+                <Ionicons name="ellipse-outline" size={24} color={theme.colors.muted} style={{ opacity: sessaoId ? 1 : 0.4 }} />
               )}
             </TouchableOpacity>
             <View style={styles.itemInfo}>
@@ -206,7 +206,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
       {sessaoId && (
         <TouchableOpacity style={styles.finishBtn} onPress={handleFinalizarSessao}>
-          <Ionicons name="checkmark-done" size={16} color="#fff" />
+          <Ionicons name="checkmark-done" size={16} color={theme.colors.card} />
           <Text style={styles.finishText}>  Finalizar Sessão</Text>
         </TouchableOpacity>
       )}
@@ -220,15 +220,15 @@ const styles = StyleSheet.create({
   title: { fontSize: theme.fontSizes.lg, fontWeight: '700', color: theme.colors.text },
   statusRow: { flexDirection: 'row', alignItems: 'center' },
   progress: { fontSize: theme.fontSizes.sm, color: theme.colors.muted },
-  startBtn: { marginBottom: 12, backgroundColor: '#3b82f6', padding: 10, borderRadius: theme.radii.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  startText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6', marginTop: 8 },
+  startBtn: { marginBottom: 12, backgroundColor: theme.colors.primary, padding: 10, borderRadius: theme.radii.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  startText: { color: theme.colors.card, fontWeight: '600', fontSize: 15 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.background, marginTop: 8 },
   checkbox: { width: 34, height: 34, borderRadius: theme.radii.sm, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  checkboxDone: { backgroundColor: '#d1fae5' },
+  checkboxDone: { backgroundColor: theme.colors.background },
   itemInfo: { flex: 1 },
   itemTitle: { fontSize: theme.fontSizes.md, color: theme.colors.text },
   itemTitleDone: { textDecorationLine: 'line-through', color: theme.colors.muted },
   itemMeta: { fontSize: theme.fontSizes.sm, color: theme.colors.muted },
   finishBtn: { marginTop: 12, backgroundColor: theme.colors.primary, padding: 10, borderRadius: theme.radii.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  finishText: { color: '#fff', fontWeight: '600' }
+  finishText: { color: theme.colors.card, fontWeight: '600' }
 });

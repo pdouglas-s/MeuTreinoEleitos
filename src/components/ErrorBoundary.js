@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import theme from '../theme';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -37,23 +38,23 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 24,
-    backgroundColor: '#fff'
+    backgroundColor: theme.colors.background
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#d32f2f',
+    color: theme.colors.danger,
     marginBottom: 16
   },
   error: {
     fontSize: 14,
-    color: '#333',
+    color: theme.colors.text,
     marginBottom: 16,
     fontFamily: 'monospace'
   },
   stack: {
     fontSize: 12,
-    color: '#666',
+    color: theme.colors.muted,
     fontFamily: 'monospace'
   }
 });

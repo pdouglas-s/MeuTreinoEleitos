@@ -243,7 +243,7 @@ export default function GerenciarExercicios({ navigation }) {
         <Button 
           title={carregando ? "⏳ Processando..." : (temExerciciosPadrao ? "🔄 Reinicializar Exercícios Padrão" : "✨ Inicializar Exercícios Padrão")}
           onPress={handleInicializarBanco}
-          color={temExerciciosPadrao ? "#059669" : "#2563eb"}
+          color={theme.colors.primary}
           disabled={carregando}
         />
         {temExerciciosPadrao && (
@@ -251,7 +251,7 @@ export default function GerenciarExercicios({ navigation }) {
             <Button 
               title="🗑️ Excluir Exercícios Padrão"
               onPress={handleExcluirPadrao}
-              color="#dc2626"
+              color={theme.colors.danger}
               disabled={carregando}
             />
           </View>
@@ -295,19 +295,19 @@ export default function GerenciarExercicios({ navigation }) {
               {editandoId === item.id ? (
                 <>
                   <TouchableOpacity onPress={() => salvarEdicaoNome(item)} style={styles.saveBtn}>
-                    <Text style={{ color: '#065f46', fontSize: 13 }}>Salvar</Text>
+                    <Text style={styles.saveText}>Salvar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={cancelarEdicao} style={styles.cancelBtn}>
-                    <Text style={{ color: '#374151', fontSize: 13 }}>Cancelar</Text>
+                    <Text style={styles.cancelText}>Cancelar</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
                   <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}>
-                    <Text style={{ color: '#1d4ed8', fontSize: 13 }}>✏️</Text>
+                    <Text style={styles.editText}>✏️</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
-                    <Text style={{ color: '#dc2626', fontSize: 14 }}>🗑️</Text>
+                    <Text style={styles.deleteText}>🗑️</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -412,29 +412,53 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: theme.radii.sm,
-    backgroundColor: '#fee',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
     marginLeft: 8
   },
   editBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: theme.radii.sm,
-    backgroundColor: '#eff6ff',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
     marginLeft: 8
   },
   saveBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: theme.radii.sm,
-    backgroundColor: '#d1fae5',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
     marginLeft: 8
   },
   cancelBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: theme.radii.sm,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
     marginLeft: 8
+  },
+  deleteText: {
+    color: theme.colors.danger,
+    fontSize: 14
+  },
+  editText: {
+    color: theme.colors.primary,
+    fontSize: 13
+  },
+  saveText: {
+    color: theme.colors.primary,
+    fontSize: 13
+  },
+  cancelText: {
+    color: theme.colors.muted,
+    fontSize: 13
   },
   rowActions: {
     flexDirection: 'row',
@@ -463,35 +487,34 @@ const styles = StyleSheet.create({
   progressContainer: {
     marginBottom: 16,
     padding: 16,
-    backgroundColor: '#eff6ff',
+    backgroundColor: theme.colors.card,
     borderRadius: theme.radii.md,
-    borderWidth: 2,
-    borderColor: '#3b82f6'
+    borderWidth: 1,
+    borderColor: '#e5e7eb'
   },
   progressText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e40af',
+    color: theme.colors.text,
     marginBottom: 8,
     textAlign: 'center'
   },
   progressBarBackground: {
     height: 24,
-    backgroundColor: '#dbeafe',
+    backgroundColor: theme.colors.background,
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 8
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#3b82f6',
-    borderRadius: 12,
-    transition: 'width 0.3s ease'
+    backgroundColor: theme.colors.primary,
+    borderRadius: 12
   },
   progressPercent: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1e40af',
+    color: theme.colors.text,
     textAlign: 'center'
   }
 });
