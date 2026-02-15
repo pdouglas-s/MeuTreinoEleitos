@@ -18,6 +18,13 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   const [mostrarFinalizacao, setMostrarFinalizacao] = useState(false);
   const [nivelEsforco, setNivelEsforco] = useState(0);
   const [feedbackTreino, setFeedbackTreino] = useState('');
+  const opcoesEsforco = [
+    { nivel: 1, emoji: '😄', label: 'Muito leve' },
+    { nivel: 2, emoji: '🙂', label: 'Leve' },
+    { nivel: 3, emoji: '😐', label: 'Moderado' },
+    { nivel: 4, emoji: '😓', label: 'Pesado' },
+    { nivel: 5, emoji: '🥵', label: 'Muito pesado' }
+  ];
 
   useEffect(() => {
     carregarSessaoAtiva();
@@ -289,16 +296,17 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       {sessaoId && mostrarFinalizacao && (
         <View style={styles.finalizacaoCard}>
           <Text style={styles.finalizacaoTitle}>Nível de esforço do treino</Text>
-          <Text style={styles.finalizacaoHint}>Selecione de 1 (leve) a 5 (máximo)</Text>
+          <Text style={styles.finalizacaoHint}>Escolha a carinha que melhor representa seu esforço</Text>
 
           <View style={styles.esforcoBarra}>
-            {[1, 2, 3, 4, 5].map((nivel) => (
+            {opcoesEsforco.map((opcao) => (
               <TouchableOpacity
-                key={nivel}
-                style={[styles.esforcoSegmento, nivelEsforco >= nivel && styles.esforcoSegmentoAtivo]}
-                onPress={() => setNivelEsforco(nivel)}
+                key={opcao.nivel}
+                style={[styles.esforcoSegmento, nivelEsforco === opcao.nivel && styles.esforcoSegmentoAtivo]}
+                onPress={() => setNivelEsforco(opcao.nivel)}
               >
-                <Text style={[styles.esforcoTexto, nivelEsforco >= nivel && styles.esforcoTextoAtivo]}>{nivel}</Text>
+                <Text style={styles.esforcoEmoji}>{opcao.emoji}</Text>
+                <Text style={[styles.esforcoTexto, nivelEsforco === opcao.nivel && styles.esforcoTextoAtivo]}>{opcao.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -393,14 +401,16 @@ const styles = StyleSheet.create({
   esforcoBarra: {
     flexDirection: 'row',
     gap: 6,
-    marginBottom: 10
+    marginBottom: 10,
+    flexWrap: 'wrap'
   },
   esforcoSegmento: {
-    flex: 1,
+    width: '31%',
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: theme.radii.sm,
     paddingVertical: 8,
+    paddingHorizontal: 6,
     alignItems: 'center',
     backgroundColor: theme.colors.card
   },
@@ -408,9 +418,15 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary
   },
+  esforcoEmoji: {
+    fontSize: 20,
+    marginBottom: 4
+  },
   esforcoTexto: {
     color: theme.colors.text,
-    fontWeight: '600'
+    fontWeight: '600',
+    fontSize: 11,
+    textAlign: 'center'
   },
   esforcoTextoAtivo: {
     color: theme.colors.card
