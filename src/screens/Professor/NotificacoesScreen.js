@@ -122,7 +122,7 @@ export default function NotificacoesScreen({ navigation }) {
 
       {notificacoes.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-off-outline" size={48} color="#d1d5db" />
+          <Ionicons name="notifications-off-outline" size={48} color={theme.colors.muted} />
           <Text style={styles.emptyText}>Nenhuma notificação ainda</Text>
         </View>
       ) : (
@@ -202,7 +202,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 6,
-    backgroundColor: '#f3f4f6'
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: '#e5e7eb'
   },
   markAllText: { fontSize: 13, color: theme.colors.primary, fontWeight: '600' },
   emptyContainer: {
@@ -211,7 +213,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40
   },
-  emptyText: { fontSize: 16, color: '#9ca3af', marginTop: 12 },
+  emptyText: { fontSize: 16, color: theme.colors.muted, marginTop: 12 },
   notifCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -220,14 +222,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 0,
     marginVertical: 5,
     borderRadius: 12,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: theme.colors.text,
     shadowOpacity: 0.05,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1
   },
   notifCardUnread: {
-    backgroundColor: '#f0f9ff',
+    backgroundColor: theme.colors.background,
     borderLeftWidth: 3,
     borderLeftColor: theme.colors.primary
   },
@@ -240,9 +244,9 @@ const styles = StyleSheet.create({
     marginRight: 12
   },
   notifContent: { flex: 1 },
-  notifMessage: { fontSize: 15, color: '#374151', marginBottom: 4 },
-  notifMessageUnread: { fontWeight: '600', color: '#111827' },
-  notifTime: { fontSize: 13, color: '#9ca3af' },
+  notifMessage: { fontSize: 15, color: theme.colors.text, marginBottom: 4 },
+  notifMessageUnread: { fontWeight: '600', color: theme.colors.text },
+  notifTime: { fontSize: 13, color: theme.colors.muted },
   unreadDot: {
     width: 8,
     height: 8,

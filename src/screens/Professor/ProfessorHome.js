@@ -305,7 +305,7 @@ export default function ProfessorHome({ navigation }) {
                   <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 2 }}>{item.email}</Text>
                 </View>
                 <TouchableOpacity onPress={() => confirmDeleteProfessor(item)} style={styles.deleteBtn}>
-                  <Text style={{ color: '#dc2626', fontSize: 14 }}>🗑️ Excluir</Text>
+                  <Text style={styles.deleteText}>🗑️ Excluir</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -373,7 +373,7 @@ export default function ProfessorHome({ navigation }) {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
-                <Text style={{ color: '#dc2626', fontSize: 14 }}>🗑️ Excluir</Text>
+                <Text style={styles.deleteText}>🗑️ Excluir</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing(2)
   },
-  title: { fontSize: theme.fontSizes.xl, fontWeight: '700' },
+  title: { fontSize: theme.fontSizes.xl, fontWeight: '700', color: theme.colors.text },
   subtitle: { fontSize: 14, color: theme.colors.muted, marginTop: 4 },
   statsRow: {
     flexDirection: 'row',
@@ -439,7 +439,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -447,7 +449,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -2,
-    backgroundColor: '#ef4444',
+    backgroundColor: theme.colors.danger,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -456,20 +458,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5
   },
   badgeText: {
-    color: '#fff',
+    color: theme.colors.card,
     fontSize: 11,
     fontWeight: '700'
   },
   logoutBtn: {
-    backgroundColor: '#fee',
+    backgroundColor: theme.colors.background,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: theme.radii.md,
     borderWidth: 1,
-    borderColor: '#fca'
+    borderColor: theme.colors.danger
   },
   logoutText: {
-    color: '#dc2626',
+    color: theme.colors.danger,
     fontWeight: '600',
     fontSize: 14
   },
@@ -502,16 +504,16 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background
   },
   helperText: { color: theme.colors.muted, fontSize: 12, marginTop: -6, marginBottom: 10 },
-  inputError: { borderColor: '#dc2626' },
-  errorText: { color: '#dc2626', fontSize: 12, marginTop: -6, marginBottom: 10 },
+  inputError: { borderColor: theme.colors.danger },
+  errorText: { color: theme.colors.danger, fontSize: 12, marginTop: -6, marginBottom: 10 },
   treinoRow: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingVertical: 12, 
     paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: theme.colors.card,
     marginBottom: 4,
     borderRadius: theme.radii.sm
   },
@@ -519,8 +521,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: theme.radii.sm,
-    backgroundColor: '#fee',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
     marginLeft: 8
+  },
+  deleteText: {
+    color: theme.colors.danger,
+    fontSize: 14
   },
   bancoExerciciosBtn: {
     backgroundColor: theme.colors.primary,
@@ -530,7 +538,7 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   bancoExerciciosText: {
-    color: '#fff',
+    color: theme.colors.card,
     fontWeight: '600',
     fontSize: 15
   },
@@ -539,7 +547,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     borderRadius: theme.radii.sm,
     marginBottom: theme.spacing(1),
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
     overflow: 'hidden'
   },
   picker: {
