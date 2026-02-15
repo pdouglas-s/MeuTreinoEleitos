@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "jest",
     "test:ci": "jest --runInBand --ci",
+    "test:changed": "jest -o --passWithNoTests",
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
