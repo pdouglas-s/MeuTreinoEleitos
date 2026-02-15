@@ -17,6 +17,14 @@ function sortByCreatedAtDesc(items) {
  */
 export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const notifRef = collection(db, 'notificacoes');
+
+  const intensidadeTexto = {
+    1: '😄 Muito leve',
+    2: '🙂 Leve',
+    3: '😐 Moderado',
+    4: '😓 Pesado',
+    5: '🥵 Muito pesado'
+  };
   
   let mensagem = '';
   switch (tipo) {
@@ -28,6 +36,12 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
       break;
     case 'treino_finalizado':
       mensagem = `${dados.aluno_nome} finalizou o treino "${dados.treino_nome}" - ${dados.total_exercicios} exercícios`;
+      if (dados.nivel_esforco && intensidadeTexto[dados.nivel_esforco]) {
+        mensagem += `\nIntensidade: ${intensidadeTexto[dados.nivel_esforco]}`;
+      }
+      if (dados.feedback && String(dados.feedback).trim()) {
+        mensagem += `\nFeedback: ${String(dados.feedback).trim()}`;
+      }
       break;
     case 'treino_associado':
       mensagem = `${dados.professor_nome || 'Professor'} associou o treino "${dados.treino_nome}" para você`;
