@@ -1,4 +1,12 @@
 jest.mock('../src/firebase/config', () => ({ auth: { currentUser: { uid: 'p1' } }, db: {} }));
+jest.mock('../src/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    logout: jest.fn().mockResolvedValue(undefined),
+    profile: { uid: 'p1', role: 'professor', nome: 'PROF TESTE' },
+    loading: false,
+    isAuthenticated: true
+  })
+}));
 jest.mock('../src/services/treinoService', () => ({
   listTreinosByProfessor: jest.fn().mockResolvedValue([{ id: 't1', nome_treino: 'Prof Treino' }]),
   createTreino: jest.fn().mockResolvedValue({ id: 't2' })
