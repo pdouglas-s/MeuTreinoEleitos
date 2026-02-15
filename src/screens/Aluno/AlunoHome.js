@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import TreinoCard from '../../components/TreinoCard';
 import { auth } from '../../firebase/config';
 import { onAuthStateChanged } from 'firebase/auth';
 import { listTreinosByAluno } from '../../services/treinoService';
 import { listItensByTreino } from '../../services/treinoItensService';
-import { listarNotificacoesAluno, contarNaoLidasAluno } from '../../services/notificacoesService';
+import { contarNaoLidasAluno } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
 import theme from '../../theme';
@@ -14,16 +15,28 @@ export default function AlunoHome({ navigation }) {
   const { logout, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [treinos, setTreinos] = useState([]);
-  const [notificacoes, setNotificacoes] = useState([]);
   const [notifCount, setNotifCount] = useState(0);
 
+  async function loadNotificacoes(alunoId) {
+    try {
+      const count = await contarNaoLidasAluno(alunoId);
+      setNotifCount(count);
+    } catch (err) {
+      console.warn('Erro ao carregar notificações do aluno:', err?.message || err);
+    }
+  }
+
   useEffect(() => {
+    let interval = null;
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setTreinos([]);
-        setNotificacoes([]);
         setNotifCount(0);
         setLoading(false);
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
         return;
       }
 
@@ -37,13 +50,9 @@ export default function AlunoHome({ navigation }) {
           })
         );
         setTreinos(tWithItems);
-
-        const [notifs, count] = await Promise.all([
-          listarNotificacoesAluno(user.uid),
-          contarNaoLidasAluno(user.uid)
-        ]);
-        setNotificacoes(notifs.slice(0, 5));
-        setNotifCount(count);
+        await loadNotificacoes(user.uid);
+        if (interval) clearInterval(interval);
+        interval = setInterval(() => loadNotificacoes(user.uid), 30000);
       } catch (err) {
         console.warn('Erro ao listar treinos:', err.message);
       } finally {
@@ -51,7 +60,10 @@ export default function AlunoHome({ navigation }) {
       }
     });
 
-    return () => unsub();
+    return () => {
+      if (interval) clearInterval(interval);
+      unsub();
+    };
   }, []);
 
   async function handleLogout() {
@@ -61,18 +73,6 @@ export default function AlunoHome({ navigation }) {
     } catch (err) {
       Alert.alert('Erro', 'Falha ao sair: ' + err.message);
     }
-  }
-
-  function formatarData(data) {
-    if (!data) return '';
-    const d = data.toDate ? data.toDate() : new Date(data);
-    const agora = new Date();
-    const diff = Math.floor((agora - d) / 1000);
-
-    if (diff < 60) return 'Agora';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m atrás`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
 
   if (loading) return (
@@ -88,29 +88,30 @@ export default function AlunoHome({ navigation }) {
           <Text style={styles.title}>Seus Treinos</Text>
           <Text style={styles.subtitle}>Bem-vindo, {profile?.nome}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>🚪 Sair</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.notifBtn}
+            onPress={() => {
+              navigation.navigate('Notificacoes');
+              loadNotificacoes(auth.currentUser?.uid);
+            }}
+          >
+            <Ionicons name="notifications" size={22} color={theme.colors.primary} />
+            {notifCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{notifCount > 99 ? '99+' : notifCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <Text style={styles.logoutText}>🚪 Sair</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.statsCard}>
         <Text style={styles.statsValue}>{treinos.length}</Text>
         <Text style={styles.statsLabel}>treino(s) disponível(is)</Text>
-      </View>
-
-      <View style={styles.notifCard}>
-        <Text style={styles.notifTitle}>Notificações</Text>
-        <Text style={styles.notifSubtitle}>{notifCount} não lida(s)</Text>
-        {notificacoes.length === 0 ? (
-          <Text style={styles.emptyText}>Nenhuma notificação por enquanto.</Text>
-        ) : (
-          notificacoes.map((n) => (
-            <View key={n.id} style={styles.notifItem}>
-              <Text style={styles.notifMessage}>{n.mensagem}</Text>
-              <Text style={styles.notifTime}>{formatarData(n.created_at)}</Text>
-            </View>
-          ))
-        )}
       </View>
 
       {treinos.length === 0 && (
@@ -139,6 +140,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  notifBtn: {
+    position: 'relative',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: theme.colors.danger,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5
+  },
+  badgeText: {
+    color: theme.colors.card,
+    fontSize: 11,
+    fontWeight: '700'
   },
   title: { fontSize: 22, fontWeight: '700', color: theme.colors.text },
   subtitle: { fontSize: 14, color: theme.colors.muted, marginTop: 4 },
@@ -172,39 +206,6 @@ const styles = StyleSheet.create({
   emptyText: {
     color: theme.colors.muted,
     textAlign: 'center'
-  },
-  notifCard: {
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: theme.radii.md,
-    padding: 12,
-    marginBottom: 12
-  },
-  notifTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.text
-  },
-  notifSubtitle: {
-    fontSize: 12,
-    color: theme.colors.muted,
-    marginTop: 2,
-    marginBottom: 8
-  },
-  notifItem: {
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#eef0f3'
-  },
-  notifMessage: {
-    fontSize: 14,
-    color: theme.colors.text
-  },
-  notifTime: {
-    fontSize: 12,
-    color: theme.colors.muted,
-    marginTop: 2
   },
   logoutBtn: {
     backgroundColor: '#fee',

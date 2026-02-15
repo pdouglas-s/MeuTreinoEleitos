@@ -2,23 +2,33 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../theme';
-import { listarNotificacoesProfessor, marcarComoLida, marcarTodasComoLidas } from '../../services/notificacoesService';
+import { listarNotificacoesProfessor, listarNotificacoesAluno, marcarComoLida, marcarTodasComoLidas, marcarTodasComoLidasAluno } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
+import { auth } from '../../firebase/config';
 
 export default function NotificacoesScreen({ navigation }) {
   const { profile } = useAuth();
   const [notificacoes, setNotificacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const userId = auth.currentUser?.uid || profile?.id || profile?.uid || null;
+  const isProfessor = profile?.role === 'professor';
 
   useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     carregarNotificacoes();
-  }, []);
+  }, [userId, isProfessor]);
 
   async function carregarNotificacoes() {
+    if (!userId) return;
     try {
-      const notifs = await listarNotificacoesProfessor(profile.uid);
+      const notifs = isProfessor
+        ? await listarNotificacoesProfessor(userId)
+        : await listarNotificacoesAluno(userId);
       setNotificacoes(notifs);
     } catch (err) {
       console.error('Erro ao carregar notificações:', err);
@@ -43,8 +53,10 @@ export default function NotificacoesScreen({ navigation }) {
   }
 
   async function handleMarcarTodasLidas() {
+    if (!userId) return;
     try {
-      await marcarTodasComoLidas(profile.uid);
+      if (isProfessor) await marcarTodasComoLidas(userId);
+      else await marcarTodasComoLidasAluno(userId);
       setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
       Alert.alert('Sucesso', 'Todas notificações marcadas como lidas');
     } catch (err) {
@@ -78,6 +90,8 @@ export default function NotificacoesScreen({ navigation }) {
         return { name: 'checkmark-circle', color: '#10b981' };
       case 'treino_finalizado':
         return { name: 'trophy', color: '#f59e0b' };
+      case 'treino_associado':
+        return { name: 'clipboard', color: '#0ea5a4' };
       default:
         return { name: 'notifications', color: '#6b7280' };
     }

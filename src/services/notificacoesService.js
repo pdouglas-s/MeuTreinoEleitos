@@ -148,6 +148,26 @@ export async function marcarTodasComoLidas(professorId) {
 }
 
 /**
+ * Marca todas notificações de um aluno como lidas
+ */
+export async function marcarTodasComoLidasAluno(alunoId) {
+  const q = query(
+    collection(db, 'notificacoes'),
+    where('aluno_id', '==', alunoId),
+    where('lida', '==', false)
+  );
+
+  const snapshot = await getDocs(q);
+  const batch = writeBatch(db);
+
+  snapshot.docs.forEach(docSnap => {
+    batch.update(docSnap.ref, { lida: true });
+  });
+
+  await batch.commit();
+}
+
+/**
  * Conta notificações não lidas
  */
 export async function contarNaoLidas(professorId) {
