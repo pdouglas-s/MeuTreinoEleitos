@@ -190,22 +190,39 @@ export default function GerenciarExercicios({ navigation }) {
   }
 
   const categorias = [...new Set(exercicios.map(e => e.categoria))];
+  const totalCategorias = categorias.length;
+  const totalPadrao = exercicios.filter((e) => e.is_padrao).length;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Gerenciar Banco de Exercícios</Text>
-          <Text style={styles.subtitle}>{exercicios.length} exercícios cadastrados</Text>
+          <Text style={styles.subtitle}>Organize os exercícios para montar fichas mais rápido</Text>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={styles.logoutText}>🚪 Sair</Text>
         </TouchableOpacity>
       </View>
 
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{exercicios.length}</Text>
+          <Text style={styles.statLabel}>Exercícios</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{totalCategorias}</Text>
+          <Text style={styles.statLabel}>Categorias</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{totalPadrao}</Text>
+          <Text style={styles.statLabel}>Padrão</Text>
+        </View>
+      </View>
+
       {exercicios.length === 0 && (
         <View style={styles.emptyContainer}>
-          <Text style={{ marginBottom: 12, textAlign: 'center' }}>Nenhum exercício cadastrado</Text>
+          <Text style={{ marginBottom: 12, textAlign: 'center', color: theme.colors.muted }}>Nenhum exercício cadastrado</Text>
         </View>
       )}
 
@@ -219,7 +236,10 @@ export default function GerenciarExercicios({ navigation }) {
         </View>
       )}
 
-      <View style={styles.actionContainer}>
+      <View style={styles.cardBlock}>
+        <Text style={styles.blockTitle}>Banco padrão do sistema</Text>
+        <Text style={styles.blockHint}>Use para popular ou limpar exercícios padrões sem afetar os personalizados.</Text>
+        <View style={styles.actionContainer}>
         <Button 
           title={carregando ? "⏳ Processando..." : (temExerciciosPadrao ? "🔄 Reinicializar Exercícios Padrão" : "✨ Inicializar Exercícios Padrão")}
           onPress={handleInicializarBanco}
@@ -236,20 +256,24 @@ export default function GerenciarExercicios({ navigation }) {
             />
           </View>
         )}
+        </View>
       </View>
 
-      <Text style={styles.section}>Novo Exercício</Text>
-      <TextInput placeholder="Nome do exercício" style={styles.input} value={nome} onChangeText={setNome} />
-      <TextInput placeholder="Categoria (Peito, Costas, Pernas...)" style={styles.input} value={categoria} onChangeText={setCategoria} />
-      <TextInput placeholder="Séries padrão" style={styles.input} value={series} onChangeText={setSeries} keyboardType="numeric" />
-      <TextInput placeholder="Repetições padrão" style={styles.input} value={reps} onChangeText={setReps} keyboardType="numeric" />
-      <Button title="Adicionar Exercício" onPress={handleCreateExercicio} />
+      <View style={styles.cardBlock}>
+        <Text style={styles.blockTitle}>Cadastrar novo exercício</Text>
+        <TextInput placeholder="Nome do exercício" style={styles.input} value={nome} onChangeText={setNome} />
+        <TextInput placeholder="Categoria (Peito, Costas, Pernas...)" style={styles.input} value={categoria} onChangeText={setCategoria} />
+        <TextInput placeholder="Séries padrão" style={styles.input} value={series} onChangeText={setSeries} keyboardType="numeric" />
+        <TextInput placeholder="Repetições padrão" style={styles.input} value={reps} onChangeText={setReps} keyboardType="numeric" />
+        <Button title="Adicionar Exercício" onPress={handleCreateExercicio} />
+      </View>
 
       <Text style={styles.section}>Exercícios Cadastrados ({exercicios.length})</Text>
       
       <FlatList
         data={exercicios}
         keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item }) => (
           <View style={styles.exercicioRow}>
             <View style={{ flex: 1 }}>
@@ -263,7 +287,7 @@ export default function GerenciarExercicios({ navigation }) {
               ) : (
                 <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome}</Text>
               )}
-              <Text style={{ fontSize: 12, color: '#666' }}>
+              <Text style={{ fontSize: 12, color: theme.colors.muted }}>
                 {item.categoria} • {item.series_padrao || '-'}x{item.repeticoes_padrao || '-'}
               </Text>
             </View>
@@ -306,29 +330,81 @@ const styles = StyleSheet.create({
   title: { fontSize: theme.fontSizes.xl, marginBottom: theme.spacing(0.5) },
   subtitle: { 
     fontSize: theme.fontSizes.sm, 
-    color: theme.colors.textSecondary 
+    color: theme.colors.muted 
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: theme.spacing(1.5)
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb'
+  },
+  statValue: {
+    fontSize: theme.fontSizes.lg,
+    fontWeight: '700',
+    color: theme.colors.text
+  },
+  statLabel: {
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.muted,
+    marginTop: 2
   },
   logoutBtn: { 
     paddingVertical: 8, 
     paddingHorizontal: 14, 
     borderRadius: theme.radii.sm, 
-    backgroundColor: '#fee' 
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb'
   },
   logoutText: { 
-    color: '#dc2626', 
+    color: theme.colors.danger, 
     fontSize: 15, 
     fontWeight: '500' 
   },
   section: { fontWeight: '600', marginTop: theme.spacing(1.5), marginBottom: theme.spacing(0.5), color: theme.colors.text },
-  input: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: theme.radii.sm, padding: theme.spacing(1.5), marginBottom: theme.spacing(1) },
+  cardBlock: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: theme.spacing(1.5),
+    marginBottom: theme.spacing(1.5)
+  },
+  blockTitle: {
+    fontSize: theme.fontSizes.md,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 4
+  },
+  blockHint: {
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.muted,
+    marginBottom: 10
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    padding: theme.spacing(1.5),
+    marginBottom: theme.spacing(1),
+    backgroundColor: theme.colors.background
+  },
   exercicioRow: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingVertical: 12, 
     paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: theme.colors.card,
     marginBottom: 4,
     borderRadius: theme.radii.sm
   },
@@ -375,19 +451,14 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     padding: 20,
-    backgroundColor: '#f9fafb',
+    backgroundColor: theme.colors.card,
     borderRadius: theme.radii.md,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb'
   },
   actionContainer: {
-    marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#f0fdf4',
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: '#bbf7d0'
+    marginTop: 4
   },
   progressContainer: {
     marginBottom: 16,

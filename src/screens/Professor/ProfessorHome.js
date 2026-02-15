@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
 import { createAluno, createProfessor, deleteProfessorProfile, listAllAlunos, listAllProfessores, unblockBlockedEmail } from '../../services/userService';
@@ -21,6 +22,7 @@ export default function ProfessorHome({ navigation }) {
 
   // Treinos
   const [nomeTreino, setNomeTreino] = useState('');
+  const [alunoSelecionadoTreino, setAlunoSelecionadoTreino] = useState('');
   const [treinos, setTreinos] = useState([]);
   const [alunos, setAlunos] = useState([]);
   const [alunosMap, setAlunosMap] = useState({});
@@ -32,6 +34,9 @@ export default function ProfessorHome({ navigation }) {
   const createAlunoDisabled = !nome.trim() || !email.trim() || emailAlunoInvalido;
   const createProfessorDisabled = !nomeProfessor.trim() || !emailProfessor.trim() || emailProfessorInvalido;
   const desbloquearEmailDisabled = !emailDesbloqueio.trim() || emailDesbloqueioInvalido;
+  const createTreinoParaAlunoDisabled = !nomeTreino.trim() || !alunoSelecionadoTreino;
+  const treinosModeloCount = treinos.filter((item) => !item.aluno_id).length;
+  const treinosComAlunoCount = treinos.filter((item) => !!item.aluno_id).length;
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -72,10 +77,11 @@ export default function ProfessorHome({ navigation }) {
   async function loadAlunos() {
     try {
       const list = await listAllAlunos();
-      setAlunos(list);
+      const sortedList = [...list].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+      setAlunos(sortedList);
       // Criar um mapa id -> nome para lookup rápido
       const map = {};
-      list.forEach(aluno => {
+      sortedList.forEach(aluno => {
         map[aluno.id] = aluno.nome;
       });
       setAlunosMap(map);
@@ -155,18 +161,19 @@ export default function ProfessorHome({ navigation }) {
     }
   }
 
-  async function handleCreateTreino() {
+  async function handleCreateTreino(alunoId = '') {
     if (!nomeTreino) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
       const professor_id = auth.currentUser?.uid;
-      const { id } = await createTreino({ aluno_id: '', professor_id, nome_treino: nomeTreino, ativo: true });
-      const novo = { id, aluno_id: '', professor_id, nome_treino: nomeTreino, ativo: true };
+      const { id } = await createTreino({ aluno_id: alunoId, professor_id, nome_treino: nomeTreino, ativo: true });
+      const novo = { id, aluno_id: alunoId, professor_id, nome_treino: nomeTreino, ativo: true };
       const novaLista = [novo, ...treinos];
       // Ordenar alfabeticamente
       novaLista.sort((a, b) => a.nome_treino.localeCompare(b.nome_treino));
       setTreinos(novaLista);
       setNomeTreino('');
-      Alert.alert('Sucesso', 'Treino criado');
+      setAlunoSelecionadoTreino('');
+      Alert.alert('Sucesso', alunoId ? 'Treino criado para o aluno selecionado' : 'Treino modelo criado (sem aluno)');
     } catch (err) {
       Alert.alert('Erro', err.message);
     }
@@ -245,6 +252,21 @@ export default function ProfessorHome({ navigation }) {
         </View>
       </View>
 
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{alunos.length}</Text>
+          <Text style={styles.statLabel}>Alunos</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{treinos.length}</Text>
+          <Text style={styles.statLabel}>Treinos</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{notifCount}</Text>
+          <Text style={styles.statLabel}>Notificações</Text>
+        </View>
+      </View>
+
       <TouchableOpacity 
         style={styles.bancoExerciciosBtn} 
         onPress={() => navigation.navigate('GerenciarExercicios')}
@@ -252,15 +274,19 @@ export default function ProfessorHome({ navigation }) {
         <Text style={styles.bancoExerciciosText}>📚 Gerenciar Banco de Exercícios</Text>
       </TouchableOpacity>
 
-      <Text style={styles.section}>Criar Aluno</Text>
-      <TextInput placeholder="Nome do aluno" style={styles.input} value={nome} onChangeText={setNome} />
-      <TextInput placeholder="E-mail do aluno" style={[styles.input, emailAlunoInvalido && styles.inputError]} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-      <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
-      {emailAlunoInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
-      <Button title="Criar Aluno" onPress={handleCreateAluno} disabled={createAlunoDisabled} />
+      <View style={styles.cardBlock}>
+        <Text style={styles.blockTitle}>Cadastro de Aluno</Text>
+        <Text style={styles.blockHint}>Crie alunos com senha padrão para início rápido.</Text>
+        <TextInput placeholder="Nome do aluno" style={styles.input} value={nome} onChangeText={setNome} />
+        <TextInput placeholder="E-mail do aluno" style={[styles.input, emailAlunoInvalido && styles.inputError]} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+        <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
+        {emailAlunoInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
+        <Button title="Criar Aluno" onPress={handleCreateAluno} disabled={createAlunoDisabled} />
+      </View>
 
       {isAdmin && (
-        <>
+        <View style={styles.cardBlock}>
+          <Text style={styles.blockTitle}>Administração de Professores</Text>
           <Text style={styles.section}>Criar Professor</Text>
           <TextInput placeholder="Nome do professor" style={styles.input} value={nomeProfessor} onChangeText={setNomeProfessor} />
           <TextInput placeholder="E-mail do professor" style={[styles.input, emailProfessorInvalido && styles.inputError]} value={emailProfessor} onChangeText={setEmailProfessor} keyboardType="email-address" autoCapitalize="none" />
@@ -284,6 +310,7 @@ export default function ProfessorHome({ navigation }) {
               </View>
             )}
           />
+          {professores.length === 0 && <Text style={styles.emptyHint}>Nenhum professor adicional cadastrado.</Text>}
 
           <Text style={[styles.section, { marginTop: 12 }]}>Desbloquear E-mail</Text>
           <TextInput
@@ -297,33 +324,62 @@ export default function ProfessorHome({ navigation }) {
           <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
           {emailDesbloqueioInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
           <Button title="Desbloquear E-mail" onPress={handleUnblockEmail} disabled={desbloquearEmailDisabled} />
-        </>
+        </View>
       )}
 
-      <Text style={styles.section}>Treinos</Text>
-      <TextInput placeholder="Nome do treino" style={styles.input} value={nomeTreino} onChangeText={setNomeTreino} />
-      <Button title="Criar Treino (sem aluno)" onPress={handleCreateTreino} />
+      <View style={styles.cardBlock}>
+        <Text style={styles.blockTitle}>Montagem de Ficha</Text>
+        <Text style={styles.blockHint}>Crie treino modelo ou vincule diretamente a um aluno cadastrado.</Text>
+        <TextInput placeholder="Nome do treino" style={styles.input} value={nomeTreino} onChangeText={setNomeTreino} />
+        <Button title="Criar Treino (sem aluno)" onPress={() => handleCreateTreino('')} />
 
-      <Text style={[styles.section, { marginTop: 12 }]}>Seus Treinos</Text>
-      <FlatList
-        data={treinos}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.treinoRow}>
-            <TouchableOpacity style={{ flex: 1 }} onPress={() => handleSelectTreino(item)}>
-              <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome_treino}</Text>
-              <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 2 }}>
-                {item.aluno_id && alunosMap[item.aluno_id] 
-                  ? `👤 ${alunosMap[item.aluno_id]}` 
-                  : '📋 Treino modelo (sem aluno)'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
-              <Text style={{ color: '#dc2626', fontSize: 14 }}>🗑️ Excluir</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
+        <Text style={[styles.section, { marginTop: 12 }]}>Criar treino para aluno</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={alunoSelecionadoTreino}
+            onValueChange={(value) => setAlunoSelecionadoTreino(value)}
+            style={styles.picker}
+          >
+            <Picker.Item label="Selecione um aluno" value="" />
+            {alunos.map((aluno) => (
+              <Picker.Item key={aluno.id} label={`${aluno.nome} (${aluno.email})`} value={aluno.id} />
+            ))}
+          </Picker>
+        </View>
+        <Button
+          title="Criar Treino para Aluno"
+          onPress={() => handleCreateTreino(alunoSelecionadoTreino)}
+          disabled={createTreinoParaAlunoDisabled}
+        />
+        <View style={styles.quickInfoRow}>
+          <Text style={styles.quickInfoText}>📋 Modelos: {treinosModeloCount}</Text>
+          <Text style={styles.quickInfoText}>👤 Vinculados: {treinosComAlunoCount}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardBlock}>
+        <Text style={styles.blockTitle}>Seus Treinos</Text>
+        <FlatList
+          data={treinos}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.treinoRow}>
+              <TouchableOpacity style={{ flex: 1 }} onPress={() => handleSelectTreino(item)}>
+                <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome_treino}</Text>
+                <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 2 }}>
+                  {item.aluno_id && alunosMap[item.aluno_id] 
+                    ? `👤 ${alunosMap[item.aluno_id]}` 
+                    : '📋 Treino modelo (sem aluno)'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
+                <Text style={{ color: '#dc2626', fontSize: 14 }}>🗑️ Excluir</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        />
+        {treinos.length === 0 && <Text style={styles.emptyHint}>Nenhum treino criado ainda.</Text>}
+      </View>
     </View>
   );
 }
@@ -349,6 +405,30 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: theme.fontSizes.xl, fontWeight: '700' },
   subtitle: { fontSize: 14, color: theme.colors.muted, marginTop: 4 },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: theme.spacing(1.5)
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingVertical: 10,
+    paddingHorizontal: 12
+  },
+  statValue: {
+    fontSize: theme.fontSizes.lg,
+    fontWeight: '700',
+    color: theme.colors.text
+  },
+  statLabel: {
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.muted,
+    marginTop: 2
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -394,7 +474,33 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   section: { fontWeight: '600', marginTop: theme.spacing(1.5), marginBottom: theme.spacing(0.5), color: theme.colors.text },
-  input: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: theme.radii.sm, padding: theme.spacing(1.5), marginBottom: theme.spacing(1) },
+  cardBlock: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: theme.spacing(1.5),
+    marginBottom: theme.spacing(1.5)
+  },
+  blockTitle: {
+    fontSize: theme.fontSizes.md,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 4
+  },
+  blockHint: {
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.muted,
+    marginBottom: 10
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    padding: theme.spacing(1.5),
+    marginBottom: theme.spacing(1),
+    backgroundColor: theme.colors.background
+  },
   helperText: { color: theme.colors.muted, fontSize: 12, marginTop: -6, marginBottom: 10 },
   inputError: { borderColor: '#dc2626' },
   errorText: { color: '#dc2626', fontSize: 12, marginTop: -6, marginBottom: 10 },
@@ -427,5 +533,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 15
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    marginBottom: theme.spacing(1),
+    backgroundColor: '#fff',
+    overflow: 'hidden'
+  },
+  picker: {
+    width: '100%'
+  },
+  quickInfoRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  quickInfoText: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  emptyHint: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    marginTop: 8
   }
 });

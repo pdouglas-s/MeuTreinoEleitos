@@ -109,6 +109,17 @@ export default function NotificacoesScreen({ navigation }) {
         )}
       </View>
 
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{notificacoes.length}</Text>
+          <Text style={styles.statLabel}>Total</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{naoLidas}</Text>
+          <Text style={styles.statLabel}>Não lidas</Text>
+        </View>
+      </View>
+
       {notificacoes.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="notifications-off-outline" size={48} color="#d1d5db" />
@@ -149,18 +160,44 @@ export default function NotificacoesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: theme.colors.background, padding: 12 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb'
+    borderBottomColor: '#e5e7eb',
+    marginBottom: 10
   },
   title: { fontSize: 22, fontWeight: '700', color: theme.colors.text },
-  subtitle: { fontSize: 14, color: '#6b7280', marginTop: 2 },
+  subtitle: { fontSize: 14, color: theme.colors.muted, marginTop: 2 },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingVertical: 10,
+    paddingHorizontal: 12
+  },
+  statValue: {
+    fontSize: theme.fontSizes.lg,
+    fontWeight: '700',
+    color: theme.colors.text
+  },
+  statLabel: {
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.muted,
+    marginTop: 2
+  },
   markAllBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -178,10 +215,10 @@ const styles = StyleSheet.create({
   notifCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.card,
     padding: 14,
-    marginHorizontal: 12,
-    marginVertical: 6,
+    marginHorizontal: 0,
+    marginVertical: 5,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOpacity: 0.05,
