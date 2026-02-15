@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, ScrollView, Platform } from 'react-native';
+import { signOut } from 'firebase/auth';
 import { registerUser } from '../services/userService';
 import { Alert } from '../utils/alert';
+import { isValidEmail, isValidPassword, MIN_PASSWORD_LENGTH } from '../utils/validation';
+import { auth } from '../firebase/config';
 
 console.log('RegisterScreen loading...');
 
@@ -10,22 +13,36 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nome, setNome] = useState('');
-  const [role, setRole] = useState('aluno');
+  const emailInvalido = email.trim().length > 0 && !isValidEmail(email);
+  const senhaInvalida = password.length > 0 && !isValidPassword(password);
+  const registerDisabled = !nome.trim() || !email.trim() || !password || emailInvalido || senhaInvalida;
 
   async function handleRegister() {
-    console.log('handleRegister called, role:', role);
+    console.log('handleRegister called, nome:', nome);
     
     if (!email || !password || !nome) {
       return Alert.alert('Erro', 'Preencha todos os campos');
     }
-    if (password.length < 6) {
-      return Alert.alert('Erro', 'A senha deve ter no mínimo 6 caracteres');
+    if (!isValidPassword(password)) {
+      return Alert.alert('Erro', `A senha deve ter no mínimo ${MIN_PASSWORD_LENGTH} caracteres`);
+    }
+    if (!isValidEmail(email)) {
+      return Alert.alert('Erro', 'Digite um e-mail válido');
     }
 
     try {
-      console.log('Calling registerUser with role:', role);
-      await registerUser({ email, password, nome, role });
-      Alert.alert('Sucesso', 'Conta criada com sucesso! Faça login.');
+      const nomeUpper = nome.toUpperCase();
+      const roleAutomatica = nomeUpper === 'ADMIN' ? 'professor' : 'aluno';
+      console.log(`Registrando usuário como ${roleAutomatica} (nome: ${nomeUpper})`);
+      
+      await registerUser({ email, password, nome });
+      
+      const mensagem = roleAutomatica === 'professor' 
+        ? 'Conta de Professor criada! Faça login.\n\nNome cadastrado: ADMIN'
+        : `Conta de Aluno criada! Faça login.\n\nNome cadastrado: ${nomeUpper}`;
+      
+      Alert.alert('Sucesso', mensagem);
+      await signOut(auth).catch(() => {});
       // Navegar para Login após pequeno delay
       setTimeout(() => {
         navigation.navigate('Login');
@@ -49,37 +66,25 @@ export default function RegisterScreen({ navigation }) {
       
       <TextInput
         placeholder="E-mail"
-        style={styles.input}
+        style={[styles.input, emailInvalido && styles.inputError]}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
       />
+      <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
+      {emailInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
       
       <TextInput
-        placeholder="Senha (mínimo 6 caracteres)"
+        placeholder={`Senha (mínimo ${MIN_PASSWORD_LENGTH} caracteres)`}
         secureTextEntry
-        style={styles.input}
+        style={[styles.input, senhaInvalida && styles.inputError]}
         value={password}
         onChangeText={setPassword}
       />
+      {senhaInvalida && <Text style={styles.errorText}>Senha deve ter no mínimo {MIN_PASSWORD_LENGTH} caracteres</Text>}
 
-      <Text style={styles.label}>Tipo de usuário:</Text>
-      <View style={styles.roleButtons}>
-        <Button
-          title="Aluno"
-          onPress={() => setRole('aluno')}
-          color={role === 'aluno' ? '#1976d2' : '#666'}
-        />
-        <View style={{ width: 10 }} />
-        <Button
-          title="Professor"
-          onPress={() => setRole('professor')}
-          color={role === 'professor' ? '#1976d2' : '#666'}
-        />
-      </View>
-
-      <Button title="Criar Conta" onPress={handleRegister} />
+      <Button title="Criar Conta" onPress={handleRegister} disabled={registerDisabled} />
       
       <Button
         title="Já tenho conta"
@@ -110,14 +115,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: '#fff',
   },
-  label: {
-    fontSize: 16,
-    marginBottom: 8,
-    marginTop: 8,
+  helperText: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 10,
   },
-  roleButtons: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    justifyContent: 'space-around',
+  inputError: {
+    borderColor: '#dc2626',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 10,
   },
 });

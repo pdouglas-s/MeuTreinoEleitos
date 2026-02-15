@@ -4,7 +4,16 @@ import { collection, addDoc, getDocs, query, where, deleteDoc, doc } from 'fireb
 const itensCol = collection(db, 'treino_itens');
 
 export async function addItemToTreino({ treino_id, exercicio_id, series, repeticoes, carga, descanso, exercicio_nome }) {
-  const docRef = await addDoc(itensCol, { treino_id, exercicio_id, series, repeticoes, carga, descanso, exercicio_nome });
+  // Remove campos undefined para não causar erro no Firestore
+  const data = { treino_id };
+  if (exercicio_id !== undefined) data.exercicio_id = exercicio_id;
+  if (exercicio_nome !== undefined) data.exercicio_nome = exercicio_nome;
+  if (series !== undefined && series !== null) data.series = series;
+  if (repeticoes !== undefined && repeticoes !== null) data.repeticoes = repeticoes;
+  if (carga !== undefined && carga !== null) data.carga = carga;
+  if (descanso !== undefined && descanso !== null) data.descanso = descanso;
+  
+  const docRef = await addDoc(itensCol, data);
   return { id: docRef.id };
 }
 

@@ -1,5 +1,5 @@
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
 import { doc, updateDoc } from 'firebase/firestore';
 
 const treinosCol = collection(db, 'treinos');
@@ -24,4 +24,9 @@ export async function listTreinosByProfessor(professor_id) {
 export async function updateTreino(treino_id, data) {
   const ref = doc(db, 'treinos', treino_id);
   await updateDoc(ref, data);
+}
+
+export async function deleteTreino(treino_id) {
+  const ref = doc(db, 'treinos', treino_id);
+  await deleteDoc(ref);
 }

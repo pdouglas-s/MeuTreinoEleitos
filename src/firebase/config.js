@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 import Constants from 'expo-constants';
 
 // Preferência: usar variáveis de ambiente para não expor segredos no código.
@@ -23,7 +24,7 @@ const firebaseConfig = {
   appId: extra.EXPO_PUBLIC_FIREBASE_APP_ID || ''
 };
 
-let app, auth, db;
+let app, auth, db, functions;
 
 // Debug: Mostrar status das variáveis de ambiente
 console.log('=== FIREBASE CONFIG DEBUG ===');
@@ -41,18 +42,31 @@ if (hasRequiredConfig) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    functions = getFunctions(app, 'us-central1');
+    
+    // Configurar persistência de autenticação (mantém usuário logado)
+    setPersistence(auth, browserLocalPersistence)
+      .then(() => {
+        console.log('✅ Persistência de autenticação configurada');
+      })
+      .catch((error) => {
+        console.warn('⚠️ Erro ao configurar persistência:', error);
+      });
+    
     console.log('✅ Firebase inicializado com sucesso!');
   } catch (error) {
     console.error('❌ Erro ao inicializar Firebase:', error);
     app = null;
     auth = null;
     db = null;
+    functions = null;
   }
 } else {
   console.warn('⚠️ Firebase NÃO inicializado: faltam API Key ou App ID');
   app = null;
   auth = null;
   db = null;
+  functions = null;
 }
 
-export { app, auth, db };
+export { app, auth, db, functions };

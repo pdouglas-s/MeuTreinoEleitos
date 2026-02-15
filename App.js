@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeContext, light, dark } from './src/theme';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import Constants from 'expo-constants';
 
 const Stack = createNativeStackNavigator();
@@ -59,6 +60,19 @@ export default function App() {
     return <ConfigError />;
   }
 
+  return (
+    <AuthProvider>
+      <ThemeContext.Provider value={{ theme, toggle }}>
+        <AppNavigator />
+      </ThemeContext.Provider>
+    </AuthProvider>
+  );
+}
+
+// Componente de navegação que usa o contexto de autenticação
+function AppNavigator() {
+  const { loading, isAuthenticated, profile } = useAuth();
+
   // Somente carrega as telas quando Firebase estiver configurado
   const LoginScreen = lazy(() => import('./src/screens/LoginScreen'));
   const RegisterScreen = lazy(() => import('./src/screens/RegisterScreen'));
@@ -66,22 +80,40 @@ export default function App() {
   const AlunoHome = lazy(() => import('./src/screens/Aluno/AlunoHome'));
   const TreinoDetail = lazy(() => import('./src/screens/TreinoDetail'));
   const ChangePassword = lazy(() => import('./src/screens/ChangePassword'));
+  const GerenciarExercicios = lazy(() => import('./src/screens/Professor/GerenciarExercicios'));
+  const NotificacoesScreen = lazy(() => import('./src/screens/Professor/NotificacoesScreen'));
+
+  if (loading) {
+    return <Loading />;
+  }
+
+  // Determinar tela inicial baseada no estado de autenticação
+  let initialRoute = 'Login';
+  if (isAuthenticated && profile) {
+    if (profile.primeiro_acesso) {
+      initialRoute = 'ChangePassword';
+    } else if (profile.role === 'professor') {
+      initialRoute = 'ProfessorHome';
+    } else {
+      initialRoute = 'AlunoHome';
+    }
+  }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
-      <Suspense fallback={<Loading />}>
-        <NavigationContainer>
-          <Stack.Navigator initialRouteName="Login">
-            <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
-            <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Criar Conta' }} />
-            <Stack.Screen name="ProfessorHome" component={ProfessorHome} options={{ title: 'Professor' }} />
-            <Stack.Screen name="AlunoHome" component={AlunoHome} options={{ title: 'Aluno' }} />
-            <Stack.Screen name="TreinoDetail" component={TreinoDetail} options={{ title: 'Treino' }} />
-            <Stack.Screen name="ChangePassword" component={ChangePassword} options={{ title: 'Trocar Senha' }} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </Suspense>
-    </ThemeContext.Provider>
+    <Suspense fallback={<Loading />}>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName={initialRoute}>
+          <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
+          <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Criar Conta' }} />
+          <Stack.Screen name="ProfessorHome" component={ProfessorHome} options={{ title: 'Professor' }} />
+          <Stack.Screen name="AlunoHome" component={AlunoHome} options={{ title: 'Aluno' }} />
+          <Stack.Screen name="TreinoDetail" component={TreinoDetail} options={{ title: 'Treino' }} />
+          <Stack.Screen name="ChangePassword" component={ChangePassword} options={{ title: 'Trocar Senha' }} />
+          <Stack.Screen name="GerenciarExercicios" component={GerenciarExercicios} options={{ title: 'Banco de Exercícios' }} />
+          <Stack.Screen name="Notificacoes" component={NotificacoesScreen} options={{ title: 'Notificações' }} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </Suspense>
   );
 }
 

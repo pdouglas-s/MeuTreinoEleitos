@@ -35,6 +35,7 @@ $env:EXPO_PUBLIC_FIREBASE_APP_ID="seu_app_id"
 $env:EXPO_PUBLIC_FIREBASE_PROJECT_ID="meu-treino-eleitos"
 $env:EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="seu_messaging_sender_id"
 $env:DEFAULT_STUDENT_PASSWORD="Mudar@123"
+$env:DEFAULT_TEACHER_PASSWORD="Mudar@123"
 ```
 
 Para definir variáveis permanentemente no Windows (PowerShell administrado):
@@ -45,6 +46,7 @@ Para definir variáveis permanentemente no Windows (PowerShell administrado):
 [System.Environment]::SetEnvironmentVariable('EXPO_PUBLIC_FIREBASE_PROJECT_ID', 'meu-treino-eleitos', 'User')
 [System.Environment]::SetEnvironmentVariable('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', 'seu_messaging_sender_id', 'User')
 [System.Environment]::SetEnvironmentVariable('DEFAULT_STUDENT_PASSWORD', 'Mudar@123', 'User')
+[System.Environment]::SetEnvironmentVariable('DEFAULT_TEACHER_PASSWORD', 'Mudar@123', 'User')
 ```
 
 Depois de definir variáveis de ambiente permanentemente, reinicie o terminal.
@@ -56,6 +58,19 @@ npm install
 npm run start
 npm test
 ```
+
+### 4. Habilitar exclusão completa de professor (Auth + Firestore)
+
+Para que o ADMIN exclua professor também do Firebase Authentication, é necessário deploy da Cloud Function:
+
+```powershell
+cd functions
+npm install
+cd ..
+firebase deploy --only functions
+```
+
+Função publicada: `deleteProfessorCompletely` (região `us-central1`).
 
 3. Inicie o projeto:
 
