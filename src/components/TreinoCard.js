@@ -214,9 +214,14 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   }
 
   return (
-    <TouchableOpacity activeOpacity={0.95} style={styles.card} onPress={() => onOpen && onOpen(treino)}>
+    <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>{treino.nome_treino}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{treino.nome_treino}</Text>
+          <TouchableOpacity style={styles.openBtn} onPress={() => onOpen && onOpen(treino)}>
+            <Text style={styles.openBtnText}>Abrir</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.statusRow}>
           {sessaoId && <Ionicons name="fitness" size={18} color={theme.colors.primary} style={{ marginRight: 6 }} />}
           <Text style={styles.progress}>{`${doneCount}/${exercicios.length}`}</Text>
@@ -331,14 +336,28 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
           </View>
         </View>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: { backgroundColor: theme.colors.card, borderRadius: theme.radii.md, padding: theme.spacing(1.5), marginBottom: theme.spacing(1.5), elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   title: { fontSize: theme.fontSizes.lg, fontWeight: '700', color: theme.colors.text },
+  openBtn: {
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.muted,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 4,
+    paddingHorizontal: 8
+  },
+  openBtnText: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    fontWeight: '600'
+  },
   statusRow: { flexDirection: 'row', alignItems: 'center' },
   progress: { fontSize: theme.fontSizes.sm, color: theme.colors.muted },
   startBtn: { marginBottom: 12, backgroundColor: theme.colors.primary, padding: 10, borderRadius: theme.radii.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },

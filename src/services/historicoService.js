@@ -115,3 +115,27 @@ export async function buscarHistoricoTreino(treinoId) {
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
+
+/**
+ * Lista sessões finalizadas de um aluno em um período
+ */
+export async function listarSessoesFinalizadasNoPeriodo(alunoId, dataInicio, dataFim) {
+  const q = query(
+    collection(db, 'sessoes_treino'),
+    where('aluno_id', '==', alunoId),
+    where('status', '==', 'finalizado')
+  );
+
+  const snapshot = await getDocs(q);
+  const inicioMs = new Date(dataInicio).getTime();
+  const fimMs = new Date(dataFim).getTime();
+
+  return snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter((sessao) => {
+      const valor = sessao?.data_fim;
+      const dataFimSessao = typeof valor?.toDate === 'function' ? valor.toDate() : new Date(valor);
+      const ms = dataFimSessao.getTime();
+      return !Number.isNaN(ms) && ms >= inicioMs && ms <= fimMs;
+    });
+}

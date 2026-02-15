@@ -92,6 +92,8 @@ export default function NotificacoesScreen({ navigation }) {
         return { name: 'trophy', color: '#f59e0b' };
       case 'treino_associado':
         return { name: 'clipboard', color: '#0ea5a4' };
+      case 'resumo_semanal':
+        return { name: 'calendar', color: '#8b5cf6' };
       default:
         return { name: 'notifications', color: '#6b7280' };
     }

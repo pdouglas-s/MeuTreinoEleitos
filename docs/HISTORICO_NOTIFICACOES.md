@@ -260,8 +260,34 @@ match /notificacoes/{docId} {
 - `src/components/TreinoCard.js`
 - `src/screens/Aluno/AlunoHome.js`
 - `src/screens/Professor/ProfessorHome.js`
+- `functions/index.js`
 - `firestore.rules`
 - `App.js`
+
+## Resumo Semanal Automático (Domingo)
+
+Foi adicionada uma Cloud Function agendada para enviar um resumo semanal para cada atleta.
+
+- **Função:** `enviarResumoSemanalAtletas`
+- **Agenda:** todo domingo, às 21:00 (`America/Sao_Paulo`)
+- **Fonte dos dados:** coleção `sessoes_treino` (`status = finalizado`)
+- **Conteúdo do resumo:**
+  - total de treinos finalizados na semana
+  - intensidade média (`nivel_esforco`)
+  - até 3 feedbacks da semana
+- **Anti-duplicidade:** valida `dados.semana_chave` para não enviar 2x na mesma semana
+
+### Deploy da Cloud Function
+
+```bash
+firebase deploy --only functions
+```
+
+Ou somente a função do resumo:
+
+```bash
+firebase deploy --only functions:enviarResumoSemanalAtletas
+```
 
 ## Próximos Passos Sugeridos
 

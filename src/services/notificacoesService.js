@@ -1,5 +1,6 @@
 import { db } from '../firebase/config';
 import { collection, addDoc, query, where, getDocs, orderBy, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { listarSessoesFinalizadasNoPeriodo } from './historicoService';
 
 function toMillis(value) {
   if (!value) return 0;
@@ -10,6 +11,62 @@ function toMillis(value) {
 
 function sortByCreatedAtDesc(items) {
   return [...items].sort((a, b) => toMillis(b.created_at) - toMillis(a.created_at));
+}
+
+function toDateValue(value) {
+  if (!value) return null;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function inicioSemana(date) {
+  const base = new Date(date);
+  const diaSemana = base.getDay();
+  const ajuste = diaSemana === 0 ? -6 : 1 - diaSemana;
+  base.setDate(base.getDate() + ajuste);
+  base.setHours(0, 0, 0, 0);
+  return base;
+}
+
+function fimSemana(date) {
+  const inicio = inicioSemana(date);
+  const fim = new Date(inicio);
+  fim.setDate(inicio.getDate() + 6);
+  fim.setHours(23, 59, 59, 999);
+  return fim;
+}
+
+function toSemanaChave(date) {
+  const inicio = inicioSemana(date);
+  const y = inicio.getFullYear();
+  const m = String(inicio.getMonth() + 1).padStart(2, '0');
+  const d = String(inicio.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatarIntervaloSemana(inicio, fim) {
+  const ini = inicio.toLocaleDateString('pt-BR');
+  const end = fim.toLocaleDateString('pt-BR');
+  return `${ini} a ${end}`;
+}
+
+function resumirIntensidade(sessoes) {
+  const intensidades = sessoes
+    .map((s) => Number(s?.nivel_esforco))
+    .filter((n) => Number.isFinite(n) && n >= 1 && n <= 5);
+
+  if (!intensidades.length) return null;
+  const media = intensidades.reduce((acc, n) => acc + n, 0) / intensidades.length;
+  return Math.round(media * 10) / 10;
+}
+
+function coletarFeedbacks(sessoes) {
+  const lista = sessoes
+    .map((s) => String(s?.feedback || '').trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(lista)).slice(0, 3);
 }
 
 /**
@@ -61,6 +118,74 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   });
   
   return docRef.id;
+}
+
+/**
+ * Gera notificação semanal para atleta aos domingos
+ */
+export async function notificarResumoSemanalAluno(alunoId, professorId, alunoNome = 'Atleta', dataReferencia = new Date()) {
+  if (!alunoId) return { enviada: false, motivo: 'aluno_invalido' };
+
+  const agora = toDateValue(dataReferencia) || new Date();
+  if (agora.getDay() !== 0) {
+    return { enviada: false, motivo: 'fora_do_domingo' };
+  }
+
+  const semanaInicio = inicioSemana(agora);
+  const semanaFim = fimSemana(agora);
+  const semanaChave = toSemanaChave(agora);
+
+  const qExistentes = query(collection(db, 'notificacoes'), where('aluno_id', '==', alunoId));
+  const existentesSnap = await getDocs(qExistentes);
+  const jaEnviada = existentesSnap.docs.some((docSnap) => {
+    const data = docSnap.data();
+    return data?.tipo === 'resumo_semanal' && data?.dados?.semana_chave === semanaChave;
+  });
+
+  if (jaEnviada) {
+    return { enviada: false, motivo: 'ja_enviada', semanaChave };
+  }
+
+  const sessoesSemana = await listarSessoesFinalizadasNoPeriodo(alunoId, semanaInicio, semanaFim);
+  const totalTreinos = sessoesSemana.length;
+  const mediaIntensidade = resumirIntensidade(sessoesSemana);
+  const feedbacks = coletarFeedbacks(sessoesSemana);
+  const faixaSemana = formatarIntervaloSemana(semanaInicio, semanaFim);
+
+  let mensagem = `${alunoNome}, resumo da sua semana (${faixaSemana}):\n`;
+  mensagem += `Treinos finalizados: ${totalTreinos}`;
+  mensagem += mediaIntensidade ? `\nIntensidade média: ${String(mediaIntensidade).replace('.', ',')}/5` : '\nIntensidade média: não informada';
+  if (feedbacks.length) {
+    mensagem += `\nFeedbacks: ${feedbacks.join(' | ')}`;
+  }
+
+  const dados = {
+    semana_chave: semanaChave,
+    semana_inicio: semanaInicio,
+    semana_fim: semanaFim,
+    total_treinos: totalTreinos,
+    media_intensidade: mediaIntensidade,
+    feedbacks
+  };
+
+  const docRef = await addDoc(collection(db, 'notificacoes'), {
+    professor_id: professorId || null,
+    aluno_id: alunoId,
+    tipo: 'resumo_semanal',
+    mensagem,
+    dados,
+    lida: false,
+    created_at: new Date()
+  });
+
+  return {
+    enviada: true,
+    notificacaoId: docRef.id,
+    semanaChave,
+    totalTreinos,
+    mediaIntensidade,
+    feedbacks
+  };
 }
 
 /**

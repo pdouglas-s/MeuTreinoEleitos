@@ -2,40 +2,12 @@
 
 exports[`TreinoCard snapshot 1`] = `
 <View
-  accessibilityState={
-    {
-      "busy": undefined,
-      "checked": undefined,
-      "disabled": undefined,
-      "expanded": undefined,
-      "selected": undefined,
-    }
-  }
-  accessibilityValue={
-    {
-      "max": undefined,
-      "min": undefined,
-      "now": undefined,
-      "text": undefined,
-    }
-  }
-  accessible={true}
-  collapsable={false}
-  focusable={true}
-  onClick={[Function]}
-  onResponderGrant={[Function]}
-  onResponderMove={[Function]}
-  onResponderRelease={[Function]}
-  onResponderTerminate={[Function]}
-  onResponderTerminationRequest={[Function]}
-  onStartShouldSetResponder={[Function]}
   style={
     {
       "backgroundColor": "#ffffff",
       "borderRadius": 8,
       "elevation": 2,
       "marginBottom": 12,
-      "opacity": 1,
       "padding": 12,
       "shadowColor": "#000",
       "shadowOffset": {
@@ -57,17 +29,80 @@ exports[`TreinoCard snapshot 1`] = `
       }
     }
   >
-    <Text
+    <View
       style={
         {
-          "color": "#111827",
-          "fontSize": 18,
-          "fontWeight": "700",
+          "alignItems": "center",
+          "flex": 1,
+          "flexDirection": "row",
+          "gap": 8,
         }
       }
     >
-      Snapshot Treino
-    </Text>
+      <Text
+        style={
+          {
+            "color": "#111827",
+            "fontSize": 18,
+            "fontWeight": "700",
+          }
+        }
+      >
+        Snapshot Treino
+      </Text>
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "backgroundColor": "#f7f8fb",
+            "borderColor": "#6b7280",
+            "borderRadius": 6,
+            "borderWidth": 1,
+            "opacity": 1,
+            "paddingHorizontal": 8,
+            "paddingVertical": 4,
+          }
+        }
+      >
+        <Text
+          style={
+            {
+              "color": "#6b7280",
+              "fontSize": 12,
+              "fontWeight": "600",
+            }
+          }
+        >
+          Abrir
+        </Text>
+      </View>
+    </View>
     <View
       style={
         {

@@ -6,7 +6,7 @@ import { auth } from '../../firebase/config';
 import { onAuthStateChanged } from 'firebase/auth';
 import { listTreinosByAluno } from '../../services/treinoService';
 import { listItensByTreino } from '../../services/treinoItensService';
-import { contarNaoLidasAluno } from '../../services/notificacoesService';
+import { contarNaoLidasAluno, notificarResumoSemanalAluno } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
 import theme from '../../theme';
@@ -50,6 +50,12 @@ export default function AlunoHome({ navigation }) {
           })
         );
         setTreinos(tWithItems);
+        try {
+          const professorIdResponsavel = tWithItems[0]?.professor_id || null;
+          await notificarResumoSemanalAluno(user.uid, professorIdResponsavel, profile?.nome || 'Atleta');
+        } catch (resumoErr) {
+          console.warn('Resumo semanal fallback não enviado:', resumoErr?.message || resumoErr);
+        }
         await loadNotificacoes(user.uid);
         if (interval) clearInterval(interval);
         interval = setInterval(() => loadNotificacoes(user.uid), 30000);
