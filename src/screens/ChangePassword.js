@@ -3,6 +3,8 @@ import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
 import { changePassword, setPrimeiroAcessoFalse } from '../services/userService';
 import { Alert } from '../utils/alert';
 import { auth } from '../firebase/config';
+import { db } from '../firebase/config';
+import { doc, getDoc } from 'firebase/firestore';
 import { isValidPassword, MIN_PASSWORD_LENGTH } from '../utils/validation';
 
 export default function ChangePassword({ navigation }) {
@@ -21,8 +23,18 @@ export default function ChangePassword({ navigation }) {
       // atualizar campo primeiro_acesso no firestore
       const uid = auth.currentUser?.uid;
       if (uid) await setPrimeiroAcessoFalse(uid);
+
+      let role = 'aluno';
+      if (uid) {
+        const snapshot = await getDoc(doc(db, 'users', uid));
+        if (snapshot.exists()) {
+          role = snapshot.data()?.role || 'aluno';
+        }
+      }
+
       Alert.alert('Sucesso', 'Senha alterada');
-      navigation.replace('AlunoHome');
+      if (role === 'professor') navigation.replace('ProfessorHome');
+      else navigation.replace('AlunoHome');
     } catch (err) {
       Alert.alert('Erro', err.message);
     }

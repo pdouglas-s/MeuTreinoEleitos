@@ -85,16 +85,13 @@ service cloud.firestore {
         request.auth.uid == userId
         || isProfessor()
       ) && (
-        // Não pode alterar nome
-        !request.resource.data.keys().hasAny(['nome'])
+        // Nome deve permanecer inalterado
+        request.resource.data.nome == resource.data.nome
         // Se alterar email, deve manter formato válido
         && (!request.resource.data.keys().hasAny(['email']) || isValidEmail(request.resource.data.email))
         && (!request.resource.data.keys().hasAny(['email']) || !isBlockedEmail(request.resource.data.email))
-        // Não pode mudar role para professor (exceto se já é ADMIN)
-        && (!request.resource.data.keys().hasAny(['role'])
-          || request.resource.data.role == 'aluno'
-          || (request.resource.data.role == 'professor' && resource.data.nome == 'ADMIN')
-        )
+        // Role deve permanecer inalterada
+        && request.resource.data.role == resource.data.role
       );
       
       // Fallback: ADMIN pode excluir perfil de professor (conta Auth pode permanecer)
