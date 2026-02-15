@@ -85,6 +85,41 @@ export async function listarNotificacoesProfessor(professorId, somenteNaoLidas =
 }
 
 /**
+ * Lista notificações de um aluno
+ */
+export async function listarNotificacoesAluno(alunoId, somenteNaoLidas = false) {
+  const baseCollection = collection(db, 'notificacoes');
+  const orderedQuery = somenteNaoLidas
+    ? query(
+        baseCollection,
+        where('aluno_id', '==', alunoId),
+        where('lida', '==', false),
+        orderBy('created_at', 'desc')
+      )
+    : query(
+        baseCollection,
+        where('aluno_id', '==', alunoId),
+        orderBy('created_at', 'desc')
+      );
+
+  try {
+    const snapshot = await getDocs(orderedQuery);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    const needsIndex = err?.code === 'failed-precondition' || String(err?.message || '').toLowerCase().includes('requires an index');
+    if (!needsIndex) throw err;
+
+    const fallbackQuery = somenteNaoLidas
+      ? query(baseCollection, where('aluno_id', '==', alunoId), where('lida', '==', false))
+      : query(baseCollection, where('aluno_id', '==', alunoId));
+
+    const snapshot = await getDocs(fallbackQuery);
+    const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return sortByCreatedAtDesc(notifs);
+  }
+}
+
+/**
  * Marca notificação como lida
  */
 export async function marcarComoLida(notificacaoId) {
@@ -122,6 +157,20 @@ export async function contarNaoLidas(professorId) {
     where('lida', '==', false)
   );
   
+  const snapshot = await getDocs(q);
+  return snapshot.size;
+}
+
+/**
+ * Conta notificações não lidas de um aluno
+ */
+export async function contarNaoLidasAluno(alunoId) {
+  const q = query(
+    collection(db, 'notificacoes'),
+    where('aluno_id', '==', alunoId),
+    where('lida', '==', false)
+  );
+
   const snapshot = await getDocs(q);
   return snapshot.size;
 }
