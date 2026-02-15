@@ -7,9 +7,12 @@ import { updateTreino, deleteTreino } from '../services/treinoService';
 import { searchExerciciosByNome, listAllExercicios } from '../services/exerciciosService';
 import { listAllAlunos } from '../services/userService';
 import { auth } from '../firebase/config';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function TreinoDetail({ route, navigation }) {
   const { treino } = route.params;
+  const { profile } = useAuth();
+  const isProfessor = profile?.role === 'professor';
   const [itens, setItens] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,8 +35,10 @@ export default function TreinoDetail({ route, navigation }) {
   useEffect(() => {
     navigation.setOptions({ title: treino.nome_treino });
     loadItens();
-    loadExercicios();
-    loadAlunos();
+    if (isProfessor) {
+      loadExercicios();
+      loadAlunos();
+    }
   }, []);
 
   async function loadExercicios() {
@@ -67,6 +72,7 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   async function handleAddItem() {
+    if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode editar o treino');
     if (!exNome) return Alert.alert('Erro', 'Nome do exercício é obrigatório');
     try {
       await addItemToTreino({ treino_id: treino.id, exercicio_nome: exNome, series: Number(series) || null, repeticoes: Number(reps) || null, carga: Number(carga) || null });
@@ -79,6 +85,7 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   async function handleDeleteItem(itemId) {
+    if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode remover exercícios');
     try {
       await deleteItem(itemId);
       loadItens();
@@ -89,6 +96,7 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   async function handleUpdateTreino() {
+    if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode editar o treino');
     if (!editNome) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
       const updates = { nome_treino: editNome };
@@ -105,6 +113,7 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   async function handleDeleteTreino() {
+    if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode excluir o treino');
     try {
       await deleteTreino(treino.id);
       Alert.alert('Sucesso', 'Treino excluído');
@@ -165,79 +174,87 @@ export default function TreinoDetail({ route, navigation }) {
               <Text style={{ fontSize: 16, color: theme.colors.text }}>{item.exercicio_nome}</Text>
               <Text style={{ color: theme.colors.muted }}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
             </View>
-            <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
-              <Text style={{ color: '#dc2626' }}>Remover</Text>
-            </TouchableOpacity>
+            {isProfessor && (
+              <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
+                <Text style={{ color: '#dc2626' }}>Remover</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ))}
       </View>
 
-      <View style={styles.cardBlock}>
-      <Text style={styles.section}>Adicionar exercício</Text>
-      
-      <Button 
-        title={mostrarBusca ? "Fechar banco de exercícios" : "📚 Buscar no banco de exercícios"} 
-        onPress={() => setMostrarBusca(!mostrarBusca)} 
-      />
+      {isProfessor && (
+        <View style={styles.cardBlock}>
+        <Text style={styles.section}>Adicionar exercício</Text>
+        
+        <Button 
+          title={mostrarBusca ? "Fechar banco de exercícios" : "📚 Buscar no banco de exercícios"} 
+          onPress={() => setMostrarBusca(!mostrarBusca)} 
+        />
 
-      {mostrarBusca && (
-        <View style={styles.buscaContainer}>
-          <TextInput 
-            placeholder="Buscar exercício..." 
-            style={styles.input} 
-            value={busca} 
-            onChangeText={buscarExercicios} 
-          />
-          <ScrollView style={styles.listaExercicios} nestedScrollEnabled>
-            {exerciciosEncontrados.map((ex) => (
-              <TouchableOpacity 
-                key={ex.id} 
-                style={styles.exercicioItem} 
-                onPress={() => selecionarExercicio(ex)}
-              >
-                <Text style={{ fontSize: 15, fontWeight: '500' }}>{ex.nome}</Text>
-                <Text style={{ fontSize: 12, color: '#666' }}>
-                  {ex.categoria} • {ex.series_padrao}x{ex.repeticoes_padrao}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        {mostrarBusca && (
+          <View style={styles.buscaContainer}>
+            <TextInput 
+              placeholder="Buscar exercício..." 
+              style={styles.input} 
+              value={busca} 
+              onChangeText={buscarExercicios} 
+            />
+            <ScrollView style={styles.listaExercicios} nestedScrollEnabled>
+              {exerciciosEncontrados.map((ex) => (
+                <TouchableOpacity 
+                  key={ex.id} 
+                  style={styles.exercicioItem} 
+                  onPress={() => selecionarExercicio(ex)}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '500' }}>{ex.nome}</Text>
+                  <Text style={{ fontSize: 12, color: '#666' }}>
+                    {ex.categoria} • {ex.series_padrao}x{ex.repeticoes_padrao}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        <TextInput placeholder="Nome do exercício" style={styles.input} value={exNome} onChangeText={setExNome} />
+        <TextInput placeholder="Séries" style={styles.input} value={series} onChangeText={setSeries} keyboardType="numeric" />
+        <TextInput placeholder="Repetições" style={styles.input} value={reps} onChangeText={setReps} keyboardType="numeric" />
+        <TextInput placeholder="Carga (kg)" style={styles.input} value={carga} onChangeText={setCarga} keyboardType="numeric" />
+        <Button title="Adicionar" onPress={handleAddItem} />
         </View>
       )}
 
-      <TextInput placeholder="Nome do exercício" style={styles.input} value={exNome} onChangeText={setExNome} />
-      <TextInput placeholder="Séries" style={styles.input} value={series} onChangeText={setSeries} keyboardType="numeric" />
-      <TextInput placeholder="Repetições" style={styles.input} value={reps} onChangeText={setReps} keyboardType="numeric" />
-      <TextInput placeholder="Carga (kg)" style={styles.input} value={carga} onChangeText={setCarga} keyboardType="numeric" />
-      <Button title="Adicionar" onPress={handleAddItem} />
-      </View>
-
-      <View style={styles.cardBlock}>
-        <Text style={styles.section}>Editar treino</Text>
-        <TextInput placeholder="Nome do treino" style={styles.input} value={editNome} onChangeText={setEditNome} />
-        
-        <Text style={styles.section}>Associar a um aluno</Text>
-        <View style={styles.pickerContainer}>
-          <select 
-            style={styles.picker}
-            value={alunoSelecionado}
-            onChange={(e) => setAlunoSelecionado(e.target.value)}
-          >
-            <option value="">Nenhum aluno (treino modelo)</option>
-            {alunos.map((aluno) => (
-              <option key={aluno.id} value={aluno.id}>
-                {aluno.nome} ({aluno.email})
-              </option>
-            ))}
-          </select>
+      {isProfessor && (
+        <View style={styles.cardBlock}>
+          <Text style={styles.section}>Editar treino</Text>
+          <TextInput placeholder="Nome do treino" style={styles.input} value={editNome} onChangeText={setEditNome} />
+          
+          <Text style={styles.section}>Associar a um aluno</Text>
+          <View style={styles.pickerContainer}>
+            <select 
+              style={styles.picker}
+              value={alunoSelecionado}
+              onChange={(e) => setAlunoSelecionado(e.target.value)}
+            >
+              <option value="">Nenhum aluno (treino modelo)</option>
+              {alunos.map((aluno) => (
+                <option key={aluno.id} value={aluno.id}>
+                  {aluno.nome} ({aluno.email})
+                </option>
+              ))}
+            </select>
+          </View>
+          
+          <Button title="💾 Salvar alterações" onPress={handleUpdateTreino} color="#059669" />
         </View>
-        
-        <Button title="💾 Salvar alterações" onPress={handleUpdateTreino} color="#059669" />
-      </View>
+      )}
 
-      <TouchableOpacity style={styles.deleteButton} onPress={confirmDeleteTreino}>
-        <Text style={styles.deleteButtonText}>🗑️ Excluir Treino</Text>
-      </TouchableOpacity>
+      {isProfessor && (
+        <TouchableOpacity style={styles.deleteButton} onPress={confirmDeleteTreino}>
+          <Text style={styles.deleteButtonText}>🗑️ Excluir Treino</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
