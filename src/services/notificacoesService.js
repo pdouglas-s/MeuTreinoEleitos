@@ -13,7 +13,7 @@ function sortByCreatedAtDesc(items) {
 }
 
 /**
- * Envia notificação para o professor
+ * Envia notificação
  */
 export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const notifRef = collection(db, 'notificacoes');
@@ -28,6 +28,9 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
       break;
     case 'treino_finalizado':
       mensagem = `${dados.aluno_nome} finalizou o treino "${dados.treino_nome}" - ${dados.total_exercicios} exercícios`;
+      break;
+    case 'treino_associado':
+      mensagem = `${dados.professor_nome || 'Professor'} associou o treino "${dados.treino_nome}" para você`;
       break;
     default:
       mensagem = 'Nova atividade do aluno';

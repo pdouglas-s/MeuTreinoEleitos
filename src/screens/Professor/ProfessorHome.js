@@ -6,7 +6,7 @@ import theme from '../../theme';
 import { Alert } from '../../utils/alert';
 import { createAluno, createProfessor, deleteProfessorProfile, listAllAlunos, listAllProfessores, unblockBlockedEmail } from '../../services/userService';
 import { createTreino, listTreinosByProfessor, deleteTreino } from '../../services/treinoService';
-import { contarNaoLidas } from '../../services/notificacoesService';
+import { contarNaoLidas, enviarNotificacao } from '../../services/notificacoesService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isValidEmail } from '../../utils/validation';
@@ -166,6 +166,19 @@ export default function ProfessorHome({ navigation }) {
     try {
       const professor_id = auth.currentUser?.uid;
       const { id } = await createTreino({ aluno_id: alunoId, professor_id, nome_treino: nomeTreino, ativo: true });
+
+      if (alunoId) {
+        try {
+          await enviarNotificacao(professor_id, alunoId, 'treino_associado', {
+            treino_id: id,
+            treino_nome: nomeTreino,
+            professor_nome: profile?.nome || 'Professor'
+          });
+        } catch (notifyErr) {
+          console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
+        }
+      }
+
       const novo = { id, aluno_id: alunoId, professor_id, nome_treino: nomeTreino, ativo: true };
       const novaLista = [novo, ...treinos];
       // Ordenar alfabeticamente

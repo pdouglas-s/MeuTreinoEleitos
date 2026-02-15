@@ -6,6 +6,7 @@ import { listItensByTreino, addItemToTreino, deleteItem } from '../services/trei
 import { updateTreino, deleteTreino } from '../services/treinoService';
 import { listAllExercicios } from '../services/exerciciosService';
 import { listAllAlunos } from '../services/userService';
+import { enviarNotificacao } from '../services/notificacoesService';
 import { auth } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -101,12 +102,26 @@ export default function TreinoDetail({ route, navigation }) {
     if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode editar o treino');
     if (!editNome) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
+      const alunoAnterior = treino.aluno_id || '';
       const updates = { nome_treino: editNome };
       if (alunoSelecionado !== treino.aluno_id) {
         updates.aluno_id = alunoSelecionado;
       }
       await updateTreino(treino.id, updates);
       treino.aluno_id = alunoSelecionado; // Atualizar objeto local
+
+      if (alunoSelecionado && alunoSelecionado !== alunoAnterior) {
+        try {
+          await enviarNotificacao(auth.currentUser?.uid, alunoSelecionado, 'treino_associado', {
+            treino_id: treino.id,
+            treino_nome: editNome,
+            professor_nome: profile?.nome || 'Professor'
+          });
+        } catch (notifyErr) {
+          console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
+        }
+      }
+
       Alert.alert('Sucesso', 'Treino atualizado');
       navigation.setOptions({ title: editNome });
     } catch (err) {
