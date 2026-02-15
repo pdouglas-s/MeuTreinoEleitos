@@ -3,6 +3,7 @@ import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
 import { login } from '../services/userService';
 import { Alert } from '../utils/alert';
 import { isValidEmail } from '../utils/validation';
+import theme from '../theme';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -29,24 +30,35 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>MeuTreino</Text>
-      <TextInput placeholder="E-mail" style={[styles.input, emailInvalido && styles.inputError]} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-      <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
-      {emailInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
-      <TextInput placeholder="Senha" secureTextEntry style={styles.input} value={password} onChangeText={setPassword} />
-      <Button title="Entrar" onPress={handleLogin} disabled={loginDisabled} />
-      <View style={styles.divider} />
-      <Button title="Criar Conta" onPress={() => navigation.navigate('Register')} color="#666" />
+      <View style={styles.card}>
+        <Text style={styles.title}>MeuTreino</Text>
+        <Text style={styles.subtitle}>Acesse sua conta para continuar</Text>
+        <TextInput placeholder="E-mail" style={[styles.input, emailInvalido && styles.inputError]} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+        <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
+        {emailInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
+        <TextInput placeholder="Senha" secureTextEntry style={styles.input} value={password} onChangeText={setPassword} />
+        <Button title="Entrar" onPress={handleLogin} disabled={loginDisabled} />
+        <View style={styles.divider} />
+        <Button title="Criar Conta" onPress={() => navigation.navigate('Register')} color={theme.colors.muted} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 16 },
-  title: { fontSize: 28, textAlign: 'center', marginBottom: 24 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, padding: 12, marginBottom: 12 },
+  container: { flex: 1, justifyContent: 'center', padding: 16, backgroundColor: theme.colors.background },
+  card: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.md,
+    padding: 16
+  },
+  title: { fontSize: 28, textAlign: 'center', marginBottom: 8, color: theme.colors.text, fontWeight: '700' },
+  subtitle: { fontSize: 14, textAlign: 'center', color: theme.colors.muted, marginBottom: 20 },
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, padding: 12, marginBottom: 12, backgroundColor: theme.colors.background },
   inputError: { borderColor: '#dc2626' },
-  helperText: { color: '#666', fontSize: 12, marginTop: -6, marginBottom: 10 },
+  helperText: { color: theme.colors.muted, fontSize: 12, marginTop: -6, marginBottom: 10 },
   errorText: { color: '#dc2626', fontSize: 12, marginTop: -6, marginBottom: 10 },
-  divider: { height: 20 }
+  divider: { height: 16 }
 });

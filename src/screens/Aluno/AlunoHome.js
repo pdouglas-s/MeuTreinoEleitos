@@ -7,6 +7,7 @@ import { listTreinosByAluno } from '../../services/treinoService';
 import { listItensByTreino } from '../../services/treinoItensService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
+import theme from '../../theme';
 
 export default function AlunoHome({ navigation }) {
   const { logout, profile } = useAuth();
@@ -67,7 +68,17 @@ export default function AlunoHome({ navigation }) {
           <Text style={styles.logoutText}>🚪 Sair</Text>
         </TouchableOpacity>
       </View>
-      {treinos.length === 0 && <Text>Nenhum treino encontrado.</Text>}
+
+      <View style={styles.statsCard}>
+        <Text style={styles.statsValue}>{treinos.length}</Text>
+        <Text style={styles.statsLabel}>treino(s) disponível(is)</Text>
+      </View>
+
+      {treinos.length === 0 && (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>Nenhum treino encontrado.</Text>
+        </View>
+      )}
       {treinos.map((t) => (
         <TreinoCard 
           key={t.id} 
@@ -83,15 +94,46 @@ export default function AlunoHome({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16
   },
-  title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 14, color: '#666', marginTop: 4 },
+  title: { fontSize: 22, fontWeight: '700', color: theme.colors.text },
+  subtitle: { fontSize: 14, color: theme.colors.muted, marginTop: 4 },
+  statsCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12
+  },
+  statsValue: {
+    fontSize: theme.fontSizes.lg,
+    color: theme.colors.text,
+    fontWeight: '700'
+  },
+  statsLabel: {
+    fontSize: 12,
+    color: theme.colors.muted,
+    marginTop: 2
+  },
+  emptyCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.md,
+    padding: 14,
+    marginBottom: 12
+  },
+  emptyText: {
+    color: theme.colors.muted,
+    textAlign: 'center'
+  },
   logoutBtn: {
     backgroundColor: '#fee',
     paddingVertical: 8,

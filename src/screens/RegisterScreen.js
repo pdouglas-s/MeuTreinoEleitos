@@ -5,11 +5,9 @@ import { registerUser } from '../services/userService';
 import { Alert } from '../utils/alert';
 import { isValidEmail, isValidPassword, MIN_PASSWORD_LENGTH } from '../utils/validation';
 import { auth } from '../firebase/config';
-
-console.log('RegisterScreen loading...');
+import theme from '../theme';
 
 export default function RegisterScreen({ navigation }) {
-  console.log('RegisterScreen rendering...');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nome, setNome] = useState('');
@@ -18,8 +16,6 @@ export default function RegisterScreen({ navigation }) {
   const registerDisabled = !nome.trim() || !email.trim() || !password || emailInvalido || senhaInvalida;
 
   async function handleRegister() {
-    console.log('handleRegister called, nome:', nome);
-    
     if (!email || !password || !nome) {
       return Alert.alert('Erro', 'Preencha todos os campos');
     }
@@ -33,7 +29,6 @@ export default function RegisterScreen({ navigation }) {
     try {
       const nomeUpper = nome.toUpperCase();
       const roleAutomatica = nomeUpper === 'ADMIN' ? 'professor' : 'aluno';
-      console.log(`Registrando usuário como ${roleAutomatica} (nome: ${nomeUpper})`);
       
       await registerUser({ email, password, nome });
       
@@ -55,42 +50,46 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Criar Conta</Text>
-      
-      <TextInput
-        placeholder="Nome completo"
-        style={styles.input}
-        value={nome}
-        onChangeText={setNome}
-      />
-      
-      <TextInput
-        placeholder="E-mail"
-        style={[styles.input, emailInvalido && styles.inputError]}
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
-      {emailInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
-      
-      <TextInput
-        placeholder={`Senha (mínimo ${MIN_PASSWORD_LENGTH} caracteres)`}
-        secureTextEntry
-        style={[styles.input, senhaInvalida && styles.inputError]}
-        value={password}
-        onChangeText={setPassword}
-      />
-      {senhaInvalida && <Text style={styles.errorText}>Senha deve ter no mínimo {MIN_PASSWORD_LENGTH} caracteres</Text>}
+      <View style={styles.card}>
+        <Text style={styles.title}>Criar Conta</Text>
+        <Text style={styles.subtitle}>Preencha os dados para começar</Text>
 
-      <Button title="Criar Conta" onPress={handleRegister} disabled={registerDisabled} />
-      
-      <Button
-        title="Já tenho conta"
-        onPress={() => navigation.navigate('Login')}
-        color="#666"
-      />
+        <TextInput
+          placeholder="Nome completo"
+          style={styles.input}
+          value={nome}
+          onChangeText={setNome}
+        />
+
+        <TextInput
+          placeholder="E-mail"
+          style={[styles.input, emailInvalido && styles.inputError]}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
+        {emailInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
+
+        <TextInput
+          placeholder={`Senha (mínimo ${MIN_PASSWORD_LENGTH} caracteres)`}
+          secureTextEntry
+          style={[styles.input, senhaInvalida && styles.inputError]}
+          value={password}
+          onChangeText={setPassword}
+        />
+        {senhaInvalida && <Text style={styles.errorText}>Senha deve ter no mínimo {MIN_PASSWORD_LENGTH} caracteres</Text>}
+
+        <Button title="Criar Conta" onPress={handleRegister} disabled={registerDisabled} />
+
+        <View style={{ height: 14 }} />
+        <Button
+          title="Já tenho conta"
+          onPress={() => navigation.navigate('Login')}
+          color={theme.colors.muted}
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -100,12 +99,27 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 16,
+    backgroundColor: theme.colors.background
+  },
+  card: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.md,
+    padding: 16
   },
   title: {
     fontSize: 28,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
     fontWeight: 'bold',
+    color: theme.colors.text
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+    color: theme.colors.muted
   },
   input: {
     borderWidth: 1,
@@ -113,10 +127,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 12,
     marginBottom: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
   },
   helperText: {
-    color: '#666',
+    color: theme.colors.muted,
     fontSize: 12,
     marginTop: -6,
     marginBottom: 10,

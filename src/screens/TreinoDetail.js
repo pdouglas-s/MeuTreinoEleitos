@@ -154,22 +154,25 @@ export default function TreinoDetail({ route, navigation }) {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>{treino.nome_treino}</Text>
-      
-      <Text style={styles.section}>Exercícios do Treino</Text>
-      {loading && <Text>Carregando...</Text>}
-      {!loading && itens.length === 0 && <Text style={{ color: '#666', marginBottom: 12 }}>Nenhum exercício adicionado ainda</Text>}
-      {!loading && itens.map((item) => (
-        <View key={item.id} style={styles.itemRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 16 }}>{item.exercicio_nome}</Text>
-            <Text style={{ color: '#666' }}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
-          </View>
-          <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
-            <Text style={{ color: 'red' }}>Remover</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
 
+      <View style={styles.cardBlock}>
+        <Text style={styles.section}>Exercícios do Treino</Text>
+        {loading && <Text style={styles.mutedText}>Carregando...</Text>}
+        {!loading && itens.length === 0 && <Text style={styles.mutedText}>Nenhum exercício adicionado ainda</Text>}
+        {!loading && itens.map((item) => (
+          <View key={item.id} style={styles.itemRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, color: theme.colors.text }}>{item.exercicio_nome}</Text>
+              <Text style={{ color: theme.colors.muted }}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
+            </View>
+            <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
+              <Text style={{ color: '#dc2626' }}>Remover</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.cardBlock}>
       <Text style={styles.section}>Adicionar exercício</Text>
       
       <Button 
@@ -207,27 +210,30 @@ export default function TreinoDetail({ route, navigation }) {
       <TextInput placeholder="Repetições" style={styles.input} value={reps} onChangeText={setReps} keyboardType="numeric" />
       <TextInput placeholder="Carga (kg)" style={styles.input} value={carga} onChangeText={setCarga} keyboardType="numeric" />
       <Button title="Adicionar" onPress={handleAddItem} />
-
-      <Text style={styles.section}>Editar nome do treino</Text>
-      <TextInput placeholder="Nome do treino" style={styles.input} value={editNome} onChangeText={setEditNome} />
-      
-      <Text style={styles.section}>Associar a um aluno</Text>
-      <View style={styles.pickerContainer}>
-        <select 
-          style={styles.picker}
-          value={alunoSelecionado}
-          onChange={(e) => setAlunoSelecionado(e.target.value)}
-        >
-          <option value="">Nenhum aluno (treino modelo)</option>
-          {alunos.map((aluno) => (
-            <option key={aluno.id} value={aluno.id}>
-              {aluno.nome} ({aluno.email})
-            </option>
-          ))}
-        </select>
       </View>
-      
-      <Button title="💾 Salvar alterações" onPress={handleUpdateTreino} color="#059669" />
+
+      <View style={styles.cardBlock}>
+        <Text style={styles.section}>Editar treino</Text>
+        <TextInput placeholder="Nome do treino" style={styles.input} value={editNome} onChangeText={setEditNome} />
+        
+        <Text style={styles.section}>Associar a um aluno</Text>
+        <View style={styles.pickerContainer}>
+          <select 
+            style={styles.picker}
+            value={alunoSelecionado}
+            onChange={(e) => setAlunoSelecionado(e.target.value)}
+          >
+            <option value="">Nenhum aluno (treino modelo)</option>
+            {alunos.map((aluno) => (
+              <option key={aluno.id} value={aluno.id}>
+                {aluno.nome} ({aluno.email})
+              </option>
+            ))}
+          </select>
+        </View>
+        
+        <Button title="💾 Salvar alterações" onPress={handleUpdateTreino} color="#059669" />
+      </View>
 
       <TouchableOpacity style={styles.deleteButton} onPress={confirmDeleteTreino}>
         <Text style={styles.deleteButtonText}>🗑️ Excluir Treino</Text>
@@ -237,10 +243,19 @@ export default function TreinoDetail({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: theme.spacing(2) },
-  title: { fontSize: theme.fontSizes.xl, fontWeight: '600', marginBottom: theme.spacing(1) },
+  container: { flex: 1, padding: theme.spacing(2), backgroundColor: theme.colors.background },
+  title: { fontSize: theme.fontSizes.xl, fontWeight: '700', marginBottom: theme.spacing(1), color: theme.colors.text },
+  cardBlock: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: theme.spacing(1.5),
+    marginBottom: theme.spacing(1.5)
+  },
+  mutedText: { color: theme.colors.muted, marginBottom: 10 },
   section: { fontWeight: '600', marginTop: theme.spacing(1.5), marginBottom: theme.spacing(0.5), color: theme.colors.text },
-  input: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: theme.radii.sm, padding: theme.spacing(1.5), marginBottom: theme.spacing(1) },
+  input: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: theme.radii.sm, padding: theme.spacing(1.5), marginBottom: theme.spacing(1), backgroundColor: theme.colors.background },
   itemRow: { 
     flexDirection: 'row', 
     alignItems: 'center', 
