@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "test": "jest",
+    "test:ci": "jest --runInBand --ci",
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
