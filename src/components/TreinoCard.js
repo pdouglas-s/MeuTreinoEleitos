@@ -15,6 +15,9 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   const [iniciandoSessao, setIniciandoSessao] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [pesoEditando, setPesoEditando] = useState('');
+  const [mostrarFinalizacao, setMostrarFinalizacao] = useState(false);
+  const [nivelEsforco, setNivelEsforco] = useState(0);
+  const [feedbackTreino, setFeedbackTreino] = useState('');
 
   useEffect(() => {
     carregarSessaoAtiva();
@@ -129,9 +132,28 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
     cancelarEdicaoPeso();
   }
 
+  function abrirFinalizacao() {
+    if (!sessaoId) {
+      Alert.alert('Atenção', 'Nenhuma sessão ativa para finalizar');
+      return;
+    }
+    setMostrarFinalizacao(true);
+  }
+
+  function cancelarFinalizacao() {
+    setMostrarFinalizacao(false);
+    setNivelEsforco(0);
+    setFeedbackTreino('');
+  }
+
   async function handleFinalizarSessao() {
     if (!sessaoId) {
       Alert.alert('Atenção', 'Nenhuma sessão ativa para finalizar');
+      return;
+    }
+
+    if (nivelEsforco < 1 || nivelEsforco > 5) {
+      Alert.alert('Atenção', 'Selecione o nível de esforço do treino');
       return;
     }
 
@@ -146,7 +168,10 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
     }
 
     try {
-      await finalizarSessao(sessaoId);
+      await finalizarSessao(sessaoId, {
+        nivel_esforco: nivelEsforco,
+        feedback: String(feedbackTreino || '').trim() || null
+      });
       
       // Enviar notificação ao professor
       await enviarNotificacao(professorId, alunoId, 'treino_finalizado', {
@@ -154,7 +179,9 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         treino_nome: treino.nome_treino,
         treino_id: treino.id,
         total_exercicios: totalConcluidos,
-        total_planejado: total
+        total_planejado: total,
+        nivel_esforco: nivelEsforco,
+        feedback: String(feedbackTreino || '').trim() || null
       });
 
       Alert.alert('Parabéns! 🎉', `Treino finalizado com sucesso!\n\n${totalConcluidos}/${total} exercícios concluídos`);
@@ -162,6 +189,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       // Resetar sessão para permitir novo treino
       setSessaoId(null);
       setExercicios((treino.itens || []).map((e) => ({ ...e, done: false })));
+      cancelarFinalizacao();
     } catch (err) {
       console.error('Erro ao finalizar sessão:', err);
       Alert.alert('Erro', 'Não foi possível finalizar o treino');
@@ -252,10 +280,48 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       />
 
       {sessaoId && (
-        <TouchableOpacity style={styles.finishBtn} onPress={handleFinalizarSessao}>
+        <TouchableOpacity style={styles.finishBtn} onPress={abrirFinalizacao}>
           <Ionicons name="checkmark-done" size={16} color={theme.colors.card} />
           <Text style={styles.finishText}>  Finalizar Sessão</Text>
         </TouchableOpacity>
+      )}
+
+      {sessaoId && mostrarFinalizacao && (
+        <View style={styles.finalizacaoCard}>
+          <Text style={styles.finalizacaoTitle}>Nível de esforço do treino</Text>
+          <Text style={styles.finalizacaoHint}>Selecione de 1 (leve) a 5 (máximo)</Text>
+
+          <View style={styles.esforcoBarra}>
+            {[1, 2, 3, 4, 5].map((nivel) => (
+              <TouchableOpacity
+                key={nivel}
+                style={[styles.esforcoSegmento, nivelEsforco >= nivel && styles.esforcoSegmentoAtivo]}
+                onPress={() => setNivelEsforco(nivel)}
+              >
+                <Text style={[styles.esforcoTexto, nivelEsforco >= nivel && styles.esforcoTextoAtivo]}>{nivel}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TextInput
+            style={styles.feedbackInput}
+            placeholder="Feedback do treino (opcional)"
+            value={feedbackTreino}
+            onChangeText={setFeedbackTreino}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+
+          <View style={styles.finalizacaoActions}>
+            <TouchableOpacity style={styles.cancelFinalBtn} onPress={cancelarFinalizacao}>
+              <Text style={styles.cancelFinalText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sendFinalBtn} onPress={handleFinalizarSessao}>
+              <Text style={styles.sendFinalText}>Enviar e Finalizar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -304,5 +370,88 @@ const styles = StyleSheet.create({
   },
   editCancelText: { color: theme.colors.muted, fontWeight: '600', fontSize: 12 },
   finishBtn: { marginTop: 12, backgroundColor: theme.colors.primary, padding: 10, borderRadius: theme.radii.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  finishText: { color: theme.colors.card, fontWeight: '600' }
+  finishText: { color: theme.colors.card, fontWeight: '600' },
+  finalizacaoCard: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.md,
+    padding: 12,
+    backgroundColor: theme.colors.background
+  },
+  finalizacaoTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text
+  },
+  finalizacaoHint: {
+    fontSize: 12,
+    color: theme.colors.muted,
+    marginTop: 2,
+    marginBottom: 8
+  },
+  esforcoBarra: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10
+  },
+  esforcoSegmento: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: theme.colors.card
+  },
+  esforcoSegmentoAtivo: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary
+  },
+  esforcoTexto: {
+    color: theme.colors.text,
+    fontWeight: '600'
+  },
+  esforcoTextoAtivo: {
+    color: theme.colors.card
+  },
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.card,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    minHeight: 74
+  },
+  finalizacaoActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 10
+  },
+  cancelFinalBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: theme.radii.sm,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: theme.colors.card
+  },
+  cancelFinalText: {
+    color: theme.colors.muted,
+    fontWeight: '600',
+    fontSize: 12
+  },
+  sendFinalBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.primary
+  },
+  sendFinalText: {
+    color: theme.colors.card,
+    fontWeight: '700',
+    fontSize: 12
+  }
 });

@@ -47,11 +47,12 @@ export async function marcarExercicioConcluido(sessaoId, exercicioData) {
 /**
  * Finaliza uma sessão de treino
  */
-export async function finalizarSessao(sessaoId) {
+export async function finalizarSessao(sessaoId, dadosAdicionais = {}) {
   const sessaoRef = doc(db, 'sessoes_treino', sessaoId);
   await updateDoc(sessaoRef, {
     data_fim: new Date(),
-    status: 'finalizado'
+    status: 'finalizado',
+    ...dadosAdicionais
   });
 }
 
