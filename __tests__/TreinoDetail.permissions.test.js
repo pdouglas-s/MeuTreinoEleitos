@@ -75,4 +75,44 @@ describe('TreinoDetail permissions', () => {
     expect(listAllExercicios).not.toHaveBeenCalled();
     expect(listAllAlunos).not.toHaveBeenCalled();
   });
+
+  test('professor visualiza ações de edição do treino', async () => {
+    useAuth.mockReturnValue({
+      profile: { role: 'professor', nome: 'Professor Teste' }
+    });
+
+    listItensByTreino.mockResolvedValue([
+      { id: 'item-1', exercicio_nome: 'Supino', series: 4, repeticoes: 8, carga: 40 }
+    ]);
+    listAllExercicios.mockResolvedValue([
+      { id: 'ex-1', nome: 'Supino', categoria: 'Peito', series_padrao: 4, repeticoes_padrao: 8 }
+    ]);
+    listAllAlunos.mockResolvedValue([
+      { id: 'aluno-1', nome: 'Aluno Um', email: 'aluno1@dominio.com' }
+    ]);
+
+    const navigation = { setOptions: jest.fn(), goBack: jest.fn() };
+    const route = {
+      params: {
+        treino: { id: 'treino-1', nome_treino: 'Treino Professor', aluno_id: '', professor_id: 'prof-1' }
+      }
+    };
+
+    const { getByText } = render(
+      React.createElement(TreinoDetail, { route, navigation })
+    );
+
+    await waitFor(() => {
+      expect(getByText('Supino')).toBeTruthy();
+    });
+
+    expect(getByText('Adicionar exercício')).toBeTruthy();
+    expect(getByText('Editar treino')).toBeTruthy();
+    expect(getByText('Associar a um aluno')).toBeTruthy();
+    expect(getByText('🗑️ Excluir Treino')).toBeTruthy();
+    expect(getByText('Remover')).toBeTruthy();
+
+    expect(listAllExercicios).toHaveBeenCalled();
+    expect(listAllAlunos).toHaveBeenCalled();
+  });
 });
