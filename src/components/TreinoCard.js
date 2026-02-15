@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../theme';
 import { criarSessaoTreino, marcarExercicioConcluido, finalizarSessao, buscarSessaoAtiva } from '../services/historicoService';
@@ -13,6 +13,8 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   const [sessaoId, setSessaoId] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [iniciandoSessao, setIniciandoSessao] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [pesoEditando, setPesoEditando] = useState('');
 
   useEffect(() => {
     carregarSessaoAtiva();
@@ -101,6 +103,30 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         Alert.alert('Erro', 'Não foi possível salvar o progresso');
       }
     }
+  }
+
+  function iniciarEdicaoPeso(index) {
+    const cargaAtual = exercicios[index]?.carga;
+    setEditingIndex(index);
+    setPesoEditando(cargaAtual === null || cargaAtual === undefined ? '' : String(cargaAtual));
+  }
+
+  function cancelarEdicaoPeso() {
+    setEditingIndex(null);
+    setPesoEditando('');
+  }
+
+  function salvarPeso(index) {
+    const valor = String(pesoEditando || '').trim();
+    const normalizado = valor.replace(',', '.');
+    if (normalizado && Number.isNaN(Number(normalizado))) {
+      Alert.alert('Erro', 'Digite um peso válido');
+      return;
+    }
+
+    const proximoPeso = normalizado ? Number(normalizado) : null;
+    setExercicios((prev) => prev.map((item, i) => (i === index ? { ...item, carga: proximoPeso } : item)));
+    cancelarEdicaoPeso();
   }
 
   async function handleFinalizarSessao() {
@@ -196,10 +222,31 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
                 <Ionicons name="ellipse-outline" size={24} color={theme.colors.muted} style={{ opacity: sessaoId ? 1 : 0.4 }} />
               )}
             </TouchableOpacity>
-            <View style={styles.itemInfo}>
+            <TouchableOpacity style={styles.itemInfo} onPress={() => iniciarEdicaoPeso(index)} activeOpacity={0.8}>
               <Text style={[styles.itemTitle, item.done && styles.itemTitleDone]}>{item.exercicio_nome || 'Exercício'}</Text>
               <Text style={styles.itemMeta}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
-            </View>
+              <Text style={styles.itemHint}>Toque para editar apenas o peso</Text>
+
+              {editingIndex === index && (
+                <View style={styles.editContainer}>
+                  <TextInput
+                    style={styles.editInput}
+                    value={pesoEditando}
+                    onChangeText={setPesoEditando}
+                    keyboardType="numeric"
+                    placeholder="Novo peso (kg)"
+                  />
+                  <View style={styles.editActions}>
+                    <TouchableOpacity style={styles.editSaveBtn} onPress={() => salvarPeso(index)}>
+                      <Text style={styles.editSaveText}>Salvar peso</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.editCancelBtn} onPress={cancelarEdicaoPeso}>
+                      <Text style={styles.editCancelText}>Cancelar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         )}
       />
@@ -229,6 +276,33 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: theme.fontSizes.md, color: theme.colors.text },
   itemTitleDone: { textDecorationLine: 'line-through', color: theme.colors.muted },
   itemMeta: { fontSize: theme.fontSizes.sm, color: theme.colors.muted },
+  itemHint: { fontSize: 11, color: theme.colors.muted, marginTop: 2 },
+  editContainer: { marginTop: 8 },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    paddingVertical: 8,
+    paddingHorizontal: 10
+  },
+  editActions: { flexDirection: 'row', marginTop: 8, gap: 8 },
+  editSaveBtn: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 10
+  },
+  editSaveText: { color: theme.colors.card, fontWeight: '600', fontSize: 12 },
+  editCancelBtn: {
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb'
+  },
+  editCancelText: { color: theme.colors.muted, fontWeight: '600', fontSize: 12 },
   finishBtn: { marginTop: 12, backgroundColor: theme.colors.primary, padding: 10, borderRadius: theme.radii.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   finishText: { color: theme.colors.card, fontWeight: '600' }
 });

@@ -34,4 +34,30 @@ describe('TreinoCard UI', () => {
     fireEvent.press(checkbox);
     expect(checkbox).toBeTruthy();
   });
+
+  test('permite editar apenas o peso ao tocar no exercício', async () => {
+    const { getByText, getByPlaceholderText, queryByPlaceholderText } = render(
+      React.createElement(
+        ThemeContext.Provider,
+        { value: { theme: light, toggle: () => {} } },
+        React.createElement(TreinoCard, { treino, alunoId: 'aluno-1', professorId: 'prof-1', alunoNome: 'Aluno' })
+      )
+    );
+
+    await waitFor(() => {
+      expect(getByText('Ex1')).toBeTruthy();
+    });
+
+    fireEvent.press(getByText('Ex1'));
+
+    const inputPeso = getByPlaceholderText('Novo peso (kg)');
+    fireEvent.changeText(inputPeso, '22');
+    fireEvent.press(getByText('Salvar peso'));
+
+    await waitFor(() => {
+      expect(getByText('3 x 8 • 22kg')).toBeTruthy();
+    });
+
+    expect(queryByPlaceholderText('Novo peso (kg)')).toBeNull();
+  });
 });
