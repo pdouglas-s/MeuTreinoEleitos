@@ -206,9 +206,11 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
     const total = exercicios.length;
 
     if (totalConcluidos < total) {
-      const confirmar = window.confirm 
-        ? window.confirm(`Você concluiu ${totalConcluidos} de ${total} exercícios.\n\nDeseja finalizar mesmo assim?`)
-        : true;
+      const confirmar = await Alert.confirm(
+        'Confirmar finalização',
+        `Você concluiu ${totalConcluidos} de ${total} exercícios.\n\nDeseja finalizar mesmo assim?`,
+        { confirmText: 'Finalizar' }
+      );
       if (!confirmar) return;
     }
 

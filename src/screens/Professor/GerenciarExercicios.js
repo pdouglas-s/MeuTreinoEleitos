@@ -100,17 +100,14 @@ export default function GerenciarExercicios({ navigation }) {
     }
   }
 
-  function confirmDelete(exercicio) {
-    if (window.confirm) {
-      if (window.confirm(`Deseja realmente excluir "${exercicio.nome}"?`)) {
-        handleDeleteExercicio(exercicio.id);
-      }
-    } else {
-      Alert.alert('Confirmar exclusão', `Deseja realmente excluir "${exercicio.nome}"?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', onPress: () => handleDeleteExercicio(exercicio.id), style: 'destructive' }
-      ]);
-    }
+  async function confirmDelete(exercicio) {
+    const confirmado = await Alert.confirm(
+      'Confirmar exclusão',
+      `Deseja realmente excluir "${exercicio.nome}"?`,
+      { confirmText: 'Excluir', destructive: true }
+    );
+    if (!confirmado) return;
+    handleDeleteExercicio(exercicio.id);
   }
 
   async function handleInicializarBanco() {
@@ -118,9 +115,8 @@ export default function GerenciarExercicios({ navigation }) {
       ? 'Isto irá substituir os exercícios padrão do sistema.\n\nSeus exercícios personalizados serão mantidos.\n\nContinuar?'
       : 'Isto irá adicionar 162 exercícios padrão ao banco.\n\nContinuar?';
     
-    if (window.confirm && !window.confirm(mensagem)) {
-      return;
-    }
+    const confirmado = await Alert.confirm('Confirmar ação', mensagem, { confirmText: 'Continuar' });
+    if (!confirmado) return;
     try {
       setCarregando(true);
       setProgresso(0);
@@ -151,9 +147,12 @@ export default function GerenciarExercicios({ navigation }) {
   }
 
   async function handleExcluirPadrao() {
-    if (window.confirm && !window.confirm('Deseja excluir TODOS os exercícios padrão do sistema?\n\nSeus exercícios personalizados serão mantidos.\n\nEsta ação não pode ser desfeita!')) {
-      return;
-    }
+    const confirmado = await Alert.confirm(
+      'Confirmar exclusão',
+      'Deseja excluir TODOS os exercícios padrão do sistema?\n\nSeus exercícios personalizados serão mantidos.\n\nEsta ação não pode ser desfeita!',
+      { confirmText: 'Excluir tudo', destructive: true }
+    );
+    if (!confirmado) return;
     try {
       setCarregando(true);
       setProgresso(0);

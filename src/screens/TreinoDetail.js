@@ -146,20 +146,11 @@ export default function TreinoDetail({ route, navigation }) {
     }
   }
 
-  function confirmCreateNovoVinculo(onConfirm) {
+  async function confirmCreateNovoVinculo() {
     const mensagem = 'Ao continuar, será criado um novo vínculo para o aluno selecionado e o vínculo anterior será preservado. Deseja continuar?';
-
-    if (window.confirm) {
-      if (window.confirm(mensagem)) {
-        onConfirm();
-      }
-      return;
-    }
-
-    Alert.alert('Confirmar novo vínculo', mensagem, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Criar vínculo', onPress: onConfirm }
-    ]);
+    return Alert.confirm('Confirmar novo vínculo', mensagem, {
+      confirmText: 'Criar vínculo'
+    });
   }
 
   async function handleCreateNovoVinculo() {
@@ -192,11 +183,9 @@ export default function TreinoDetail({ route, navigation }) {
       const alunoDestinoId = alunoSelecionado || treino.aluno_id || '';
 
       if (alunoSelecionado && alunoSelecionado !== alunoAnterior) {
-        confirmCreateNovoVinculo(() => {
-          handleCreateNovoVinculo().catch((err) => {
-            Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o novo vínculo do treino.'));
-          });
-        });
+        const confirmado = await confirmCreateNovoVinculo();
+        if (!confirmado) return;
+        await handleCreateNovoVinculo();
         return;
       }
 
@@ -265,17 +254,14 @@ export default function TreinoDetail({ route, navigation }) {
     }
   }
 
-  function confirmDeleteTreino() {
-    if (window.confirm) {
-      if (window.confirm(`Deseja realmente excluir o treino "${treino.nome_treino}"? Todos os exercícios serão perdidos.`)) {
-        handleDeleteTreino();
-      }
-    } else {
-      Alert.alert('Confirmar exclusão', `Deseja realmente excluir o treino "${treino.nome_treino}"? Todos os exercícios serão perdidos.`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', onPress: handleDeleteTreino, style: 'destructive' }
-      ]);
-    }
+  async function confirmDeleteTreino() {
+    const confirmado = await Alert.confirm(
+      'Confirmar exclusão',
+      `Deseja realmente excluir o treino "${treino.nome_treino}"? Todos os exercícios serão perdidos.`,
+      { confirmText: 'Excluir', destructive: true }
+    );
+    if (!confirmado) return;
+    handleDeleteTreino();
   }
 
   async function buscarExercicios(termo) {

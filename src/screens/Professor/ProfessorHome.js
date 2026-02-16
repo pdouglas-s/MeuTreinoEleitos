@@ -303,17 +303,14 @@ export default function ProfessorHome({ navigation }) {
     }
   }
 
-  function confirmDeleteProfessor(professor) {
-    if (window.confirm) {
-      if (window.confirm(`Deseja realmente excluir o professor "${professor.nome}"?`)) {
-        handleDeleteProfessor(professor.id);
-      }
-    } else {
-      Alert.alert('Confirmar exclusão', `Deseja realmente excluir o professor "${professor.nome}"?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', onPress: () => handleDeleteProfessor(professor.id), style: 'destructive' }
-      ]);
-    }
+  async function confirmDeleteProfessor(professor) {
+    const confirmado = await Alert.confirm(
+      'Confirmar exclusão',
+      `Deseja realmente excluir o professor "${professor.nome}"?`,
+      { confirmText: 'Excluir', destructive: true }
+    );
+    if (!confirmado) return;
+    handleDeleteProfessor(professor.id);
   }
 
   async function handleCreateTreino(alunoId = '') {
@@ -377,17 +374,14 @@ export default function ProfessorHome({ navigation }) {
     }
   }
 
-  function confirmDelete(treino) {
-    if (window.confirm) {
-      if (window.confirm(`Deseja realmente excluir o treino "${treino.nome_treino}"?`)) {
-        handleDeleteTreino(treino.id);
-      }
-    } else {
-      Alert.alert('Confirmar exclusão', `Deseja realmente excluir o treino "${treino.nome_treino}"?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', onPress: () => handleDeleteTreino(treino.id), style: 'destructive' }
-      ]);
-    }
+  async function confirmDelete(treino) {
+    const confirmado = await Alert.confirm(
+      'Confirmar exclusão',
+      `Deseja realmente excluir o treino "${treino.nome_treino}"?`,
+      { confirmText: 'Excluir', destructive: true }
+    );
+    if (!confirmado) return;
+    handleDeleteTreino(treino.id);
   }
 
   async function handleLogout() {
