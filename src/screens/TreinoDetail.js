@@ -110,7 +110,8 @@ export default function TreinoDetail({ route, navigation }) {
           series: item.series,
           repeticoes: item.repeticoes,
           carga: item.carga,
-          descanso: item.descanso
+          descanso: item.descanso,
+          allowDuplicate: true
         })
       )
     );
@@ -119,6 +120,11 @@ export default function TreinoDetail({ route, navigation }) {
   async function handleAddItem() {
     if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode editar o treino');
     if (!exNome) return Alert.alert('Erro', 'Nome do exercício é obrigatório');
+
+    const nomeNovo = String(exNome || '').trim().toLowerCase();
+    const jaExiste = itens.some((item) => String(item?.exercicio_nome || '').trim().toLowerCase() === nomeNovo);
+    if (jaExiste) return Alert.alert('Atenção', 'Este exercício já foi adicionado neste treino');
+
     try {
       await addItemToTreino({ treino_id: treino.id, exercicio_nome: exNome, series: Number(series) || null, repeticoes: Number(reps) || null, carga: Number(carga) || null });
       setExNome(''); setSeries(''); setReps(''); setCarga('');

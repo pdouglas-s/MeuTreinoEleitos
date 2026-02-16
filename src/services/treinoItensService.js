@@ -3,7 +3,27 @@ import { collection, addDoc, getDocs, query, where, deleteDoc, doc } from 'fireb
 
 const itensCol = collection(db, 'treino_itens');
 
-export async function addItemToTreino({ treino_id, exercicio_id, series, repeticoes, carga, descanso, exercicio_nome }) {
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+export async function addItemToTreino({ treino_id, exercicio_id, series, repeticoes, carga, descanso, exercicio_nome, allowDuplicate = false }) {
+  if (!allowDuplicate) {
+    const q = query(itensCol, where('treino_id', '==', treino_id));
+    const snap = await getDocs(q);
+    const nomeNovo = normalizeText(exercicio_nome);
+
+    const duplicated = snap.docs.some((docSnap) => {
+      const item = docSnap.data() || {};
+      if (exercicio_id && item.exercicio_id && item.exercicio_id === exercicio_id) return true;
+      return nomeNovo && normalizeText(item.exercicio_nome) === nomeNovo;
+    });
+
+    if (duplicated) {
+      throw new Error('Este exercício já foi adicionado neste treino');
+    }
+  }
+
   // Remove campos undefined para não causar erro no Firestore
   const data = { treino_id };
   if (exercicio_id !== undefined) data.exercicio_id = exercicio_id;

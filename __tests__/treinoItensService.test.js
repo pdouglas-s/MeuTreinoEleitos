@@ -18,10 +18,25 @@ describe('treinoItensService', () => {
   });
 
   test('addItemToTreino calls addDoc and returns id', async () => {
+    getDocs.mockResolvedValue({ docs: [] });
     addDoc.mockResolvedValue({ id: 'item123' });
     const res = await itensService.addItemToTreino({ treino_id: 't1', exercicio_nome: 'Supino' });
     expect(addDoc).toHaveBeenCalled();
     expect(res).toEqual({ id: 'item123' });
+  });
+
+  test('addItemToTreino bloqueia exercício repetido no mesmo treino', async () => {
+    getDocs.mockResolvedValue({
+      docs: [
+        { data: () => ({ treino_id: 't1', exercicio_nome: 'Supino' }) }
+      ]
+    });
+
+    await expect(
+      itensService.addItemToTreino({ treino_id: 't1', exercicio_nome: 'supino' })
+    ).rejects.toThrow('Este exercício já foi adicionado neste treino');
+
+    expect(addDoc).not.toHaveBeenCalled();
   });
 
   test('listItensByTreino maps docs', async () => {
@@ -33,6 +48,7 @@ describe('treinoItensService', () => {
   });
 
   test('addItemToTreino propagates permission-denied error', async () => {
+    getDocs.mockResolvedValue({ docs: [] });
     const permissionError = new Error('Missing or insufficient permissions.');
     permissionError.code = 'permission-denied';
     addDoc.mockRejectedValue(permissionError);
