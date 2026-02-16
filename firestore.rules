@@ -63,7 +63,7 @@ service cloud.firestore {
         isSystemAdmin()
         || treinoData.is_padrao == true
         || treinoData.aluno_id == request.auth.uid
-        || (isProfessor() && isSameAcademia(treinoData.academia_id))
+        || (isAcademyStaff() && isSameAcademia(treinoData.academia_id))
       );
     }
 
@@ -271,6 +271,11 @@ service cloud.firestore {
     match /notificacoes/{docId} {
       allow read: if request.auth != null && (
         isSystemAdmin()
+        || (
+          isAcademyStaff()
+          && resource.data.academia_id is string
+          && isSameAcademia(resource.data.academia_id)
+        )
         || (
           isAcademyStaff()
           && resource.data.professor_id is string

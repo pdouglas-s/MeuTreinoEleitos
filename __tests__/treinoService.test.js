@@ -34,6 +34,24 @@ describe('treinoService', () => {
     expect(res).toEqual([{ id: 't1', nome_treino: 'T1' }]);
   });
 
+  test('listTreinosByAcademia maps docs', async () => {
+    const fakeSnap = {
+      docs: [
+        { id: 't1', data: () => ({ nome_treino: 'Treino A', academia_id: 'acad_1' }) },
+        { id: 't2', data: () => ({ nome_treino: 'Treino B', academia_id: 'acad_1' }) }
+      ]
+    };
+    getDocs.mockResolvedValue(fakeSnap);
+
+    const res = await treinoService.listTreinosByAcademia('acad_1');
+
+    expect(getDocs).toHaveBeenCalled();
+    expect(res).toEqual([
+      { id: 't1', nome_treino: 'Treino A', academia_id: 'acad_1' },
+      { id: 't2', nome_treino: 'Treino B', academia_id: 'acad_1' }
+    ]);
+  });
+
   test('updateTreino propagates permission-denied error', async () => {
     doc.mockReturnValue({ id: 't1' });
     getDoc.mockResolvedValue({ exists: () => true, data: () => ({ nome_treino: 'Atual', is_padrao: false }) });

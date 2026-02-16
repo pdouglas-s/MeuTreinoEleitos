@@ -145,6 +145,7 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const docRef = await addDoc(notifRef, {
     professor_id: professorDestinoId,
     aluno_id: alunoDestinoId,
+    academia_id: String(dados?.academia_id || '').trim() || null,
     tipo,
     mensagem,
     dados,
@@ -294,6 +295,36 @@ export async function listarNotificacoesAluno(alunoId, somenteNaoLidas = false) 
 }
 
 /**
+ * Lista notificações de uma academia
+ */
+export async function listarNotificacoesAcademia(academiaId, somenteNaoLidas = false) {
+  const academia = String(academiaId || '').trim();
+  if (!academia) return [];
+
+  const baseCollection = collection(db, 'notificacoes');
+  const orderedQuery = query(
+    baseCollection,
+    where('academia_id', '==', academia),
+    orderBy('created_at', 'desc')
+  );
+
+  try {
+    const snapshot = await getDocs(orderedQuery);
+    const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return somenteNaoLidas ? notifs.filter((item) => item.lida === false) : notifs;
+  } catch (err) {
+    const needsIndex = err?.code === 'failed-precondition' || String(err?.message || '').toLowerCase().includes('requires an index');
+    if (!needsIndex) throw err;
+
+    const fallbackQuery = query(baseCollection, where('academia_id', '==', academia));
+    const snapshot = await getDocs(fallbackQuery);
+    const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const sorted = sortByCreatedAtDesc(notifs);
+    return somenteNaoLidas ? sorted.filter((item) => item.lida === false) : sorted;
+  }
+}
+
+/**
  * Marca notificação como lida
  */
 export async function marcarComoLida(notificacaoId) {
@@ -342,6 +373,30 @@ export async function marcarTodasComoLidasAluno(alunoId) {
 }
 
 /**
+ * Marca todas notificações de uma academia como lidas
+ */
+export async function marcarTodasComoLidasAcademia(academiaId) {
+  const academia = String(academiaId || '').trim();
+  if (!academia) return;
+
+  const q = query(
+    collection(db, 'notificacoes'),
+    where('academia_id', '==', academia)
+  );
+
+  const snapshot = await getDocs(q);
+  const batch = writeBatch(db);
+
+  snapshot.docs.forEach(docSnap => {
+    if (docSnap.data()?.lida === false) {
+      batch.update(docSnap.ref, { lida: true });
+    }
+  });
+
+  await batch.commit();
+}
+
+/**
  * Conta notificações não lidas
  */
 export async function contarNaoLidas(professorId) {
@@ -367,4 +422,20 @@ export async function contarNaoLidasAluno(alunoId) {
 
   const snapshot = await getDocs(q);
   return snapshot.size;
+}
+
+/**
+ * Conta notificações não lidas de uma academia
+ */
+export async function contarNaoLidasAcademia(academiaId) {
+  const academia = String(academiaId || '').trim();
+  if (!academia) return 0;
+
+  const q = query(
+    collection(db, 'notificacoes'),
+    where('academia_id', '==', academia)
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.filter((docSnap) => docSnap.data()?.lida === false).length;
 }

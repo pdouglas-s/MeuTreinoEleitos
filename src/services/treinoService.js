@@ -73,6 +73,17 @@ export async function listTreinosByProfessor(professor_id) {
   return Object.values(map);
 }
 
+export async function listTreinosByAcademia(academia_id) {
+  const academiaId = academia_id || await getCurrentUserAcademiaId();
+  if (!academiaId || typeof academiaId !== 'string') {
+    throw new Error('Admin sem academia vinculada para listar treinos');
+  }
+
+  const q = query(treinosCol, where('academia_id', '==', academiaId));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 export async function updateTreino(treino_id, data) {
   const ref = doc(db, 'treinos', treino_id);
   const snapshot = await getDoc(ref);

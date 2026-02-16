@@ -87,7 +87,8 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
           await enviarNotificacao(professorId, alunoId, 'treino_iniciado', {
             aluno_nome: alunoNome,
             treino_nome: treino.nome_treino,
-            treino_id: treino.id
+            treino_id: treino.id,
+            academia_id: treino.academia_id || null
           });
         } catch (notifyErr) {
           console.warn('Falha ao enviar notificação de treino iniciado:', notifyErr?.message || notifyErr);
@@ -137,7 +138,8 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
               series: item.series,
               repeticoes: item.repeticoes,
               carga: item.carga,
-              treino_nome: treino.nome_treino
+              treino_nome: treino.nome_treino,
+              academia_id: treino.academia_id || null
             });
           } catch (notifyErr) {
             console.warn('Falha ao enviar notificação de exercício concluído:', notifyErr?.message || notifyErr);
@@ -229,7 +231,8 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
             total_exercicios: totalConcluidos,
             total_planejado: total,
             nivel_esforco: nivelEsforco,
-            feedback: String(feedbackTreino || '').trim() || null
+            feedback: String(feedbackTreino || '').trim() || null,
+            academia_id: treino.academia_id || null
           });
         } catch (notifyErr) {
           console.warn('Falha ao enviar notificação de treino finalizado:', notifyErr?.message || notifyErr);

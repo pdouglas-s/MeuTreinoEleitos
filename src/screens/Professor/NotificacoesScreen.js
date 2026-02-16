@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, 
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../theme';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { listarNotificacoesProfessor, listarNotificacoesAluno, marcarComoLida, marcarTodasComoLidas, marcarTodasComoLidasAluno } from '../../services/notificacoesService';
+import { listarNotificacoesProfessor, listarNotificacoesAluno, listarNotificacoesAcademia, marcarComoLida, marcarTodasComoLidas, marcarTodasComoLidasAluno, marcarTodasComoLidasAcademia } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
 import { auth, db } from '../../firebase/config';
@@ -14,7 +14,8 @@ export default function NotificacoesScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const userId = auth.currentUser?.uid || profile?.id || profile?.uid || null;
-  const isProfessor = ['professor', 'admin_academia', 'admin_sistema'].includes(profile?.role);
+  const isAcademyAdmin = profile?.role === 'admin_academia';
+  const isProfessor = ['professor', 'admin_sistema'].includes(profile?.role);
 
   useEffect(() => {
     if (!userId) {
@@ -22,9 +23,12 @@ export default function NotificacoesScreen({ navigation }) {
       return;
     }
 
-    const filtro = isProfessor
-      ? query(collection(db, 'notificacoes'), where('professor_id', '==', userId))
-      : query(collection(db, 'notificacoes'), where('aluno_id', '==', userId));
+    const academiaId = String(profile?.academia_id || '').trim();
+    const filtro = isAcademyAdmin && academiaId
+      ? query(collection(db, 'notificacoes'), where('academia_id', '==', academiaId))
+      : (isProfessor
+        ? query(collection(db, 'notificacoes'), where('professor_id', '==', userId))
+        : query(collection(db, 'notificacoes'), where('aluno_id', '==', userId)));
 
     const unsubscribe = onSnapshot(filtro, (snapshot) => {
       const notifs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
@@ -43,14 +47,16 @@ export default function NotificacoesScreen({ navigation }) {
     });
 
     return () => unsubscribe();
-  }, [userId, isProfessor]);
+  }, [userId, isProfessor, isAcademyAdmin, profile?.academia_id]);
 
   async function carregarNotificacoes() {
     if (!userId) return;
     try {
-      const notifs = isProfessor
-        ? await listarNotificacoesProfessor(userId)
-        : await listarNotificacoesAluno(userId);
+      const notifs = isAcademyAdmin
+        ? await listarNotificacoesAcademia(profile?.academia_id)
+        : (isProfessor
+          ? await listarNotificacoesProfessor(userId)
+          : await listarNotificacoesAluno(userId));
       setNotificacoes(notifs);
     } catch (err) {
       console.error('Erro ao carregar notificações:', err);
@@ -77,7 +83,8 @@ export default function NotificacoesScreen({ navigation }) {
   async function handleMarcarTodasLidas() {
     if (!userId) return;
     try {
-      if (isProfessor) await marcarTodasComoLidas(userId);
+      if (isAcademyAdmin) await marcarTodasComoLidasAcademia(profile?.academia_id);
+      else if (isProfessor) await marcarTodasComoLidas(userId);
       else await marcarTodasComoLidasAluno(userId);
       setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
       Alert.alert('Sucesso', 'Todas notificações marcadas como lidas');

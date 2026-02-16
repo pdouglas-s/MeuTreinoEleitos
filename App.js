@@ -84,6 +84,9 @@ function AppNavigator() {
   const ChangePassword = lazy(() => import('./src/screens/ChangePassword'));
   const GerenciarExercicios = lazy(() => import('./src/screens/Professor/GerenciarExercicios'));
   const NotificacoesScreen = lazy(() => import('./src/screens/Professor/NotificacoesScreen'));
+  const AlunosListScreen = lazy(() => import('./src/screens/Professor/AlunosListScreen'));
+  const ProfessoresListScreen = lazy(() => import('./src/screens/Professor/ProfessoresListScreen'));
+  const TreinosListScreen = lazy(() => import('./src/screens/Professor/TreinosListScreen'));
 
   if (loading) {
     return <Loading />;
@@ -119,6 +122,9 @@ function AppNavigator() {
           <Stack.Screen name="ChangePassword" component={ChangePassword} options={{ title: 'Trocar Senha' }} />
           <Stack.Screen name="GerenciarExercicios" component={GerenciarExercicios} options={{ title: 'Banco de Exercícios' }} />
           <Stack.Screen name="Notificacoes" component={NotificacoesScreen} options={{ title: 'Notificações' }} />
+          <Stack.Screen name="AlunosList" component={AlunosListScreen} options={{ title: 'Alunos Cadastrados' }} />
+          <Stack.Screen name="ProfessoresList" component={ProfessoresListScreen} options={{ title: 'Professores Cadastrados' }} />
+          <Stack.Screen name="TreinosList" component={TreinosListScreen} options={{ title: 'Treinos' }} />
         </Stack.Navigator>
       </NavigationContainer>
     </Suspense>

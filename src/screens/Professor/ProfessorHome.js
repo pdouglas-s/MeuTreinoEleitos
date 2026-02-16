@@ -3,12 +3,13 @@ import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity, 
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
 import { createAcademia, createAcademiaAdmin, createAluno, createProfessor, deleteProfessorProfile, listAcademias, listAllAlunos, listAllProfessores, unblockBlockedEmail } from '../../services/userService';
-import { createTreino, listTreinosByProfessor, deleteTreino, updateTreino } from '../../services/treinoService';
-import { contarNaoLidas, enviarNotificacao } from '../../services/notificacoesService';
-import { auth } from '../../firebase/config';
+import { createTreino, listTreinosByProfessor, listTreinosByAcademia, deleteTreino, updateTreino } from '../../services/treinoService';
+import { contarNaoLidas, contarNaoLidasAcademia, enviarNotificacao } from '../../services/notificacoesService';
+import { auth, db } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isValidEmail } from '../../utils/validation';
 import { getAuthErrorMessage } from '../../utils/authErrors';
@@ -71,7 +72,9 @@ export default function ProfessorHome({ navigation }) {
         loadAcademias();
       } else {
         if (canManageTreinos) {
-          loadTreinos(uid);
+          loadTreinosProfessor(uid);
+        } else if (isAcademyAdmin) {
+          loadTreinosAcademia(profile?.academia_id);
         } else {
           setTreinos([]);
         }
@@ -83,12 +86,42 @@ export default function ProfessorHome({ navigation }) {
       }
       
       // Atualizar contador a cada 30 segundos
-      const interval = setInterval(() => {
-        if (!isSystemAdmin) loadNotificacoes(uid);
-      }, 30000);
-      return () => clearInterval(interval);
+      if (!isAcademyAdmin) {
+        const interval = setInterval(() => {
+          if (!isSystemAdmin) loadNotificacoes(uid);
+        }, 30000);
+        return () => clearInterval(interval);
+      }
     }
-  }, [isSystemAdmin, canManageAcademyUsers, canManageTreinos]);
+  }, [isSystemAdmin, isAcademyAdmin, canManageAcademyUsers, canManageTreinos]);
+
+  useEffect(() => {
+    const academiaId = String(profile?.academia_id || '').trim();
+    if (!isAcademyAdmin || !academiaId) return undefined;
+
+    const treinosQuery = query(collection(db, 'treinos'), where('academia_id', '==', academiaId));
+    const notifsQuery = query(collection(db, 'notificacoes'), where('academia_id', '==', academiaId));
+
+    const unsubTreinos = onSnapshot(treinosQuery, (snapshot) => {
+      const list = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      list.sort((a, b) => (a.nome_treino || '').localeCompare(b.nome_treino || ''));
+      setTreinos(list);
+    }, (err) => {
+      console.warn('Erro ao escutar treinos da academia', err?.message || err);
+    });
+
+    const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
+      const naoLidas = snapshot.docs.filter((docSnap) => docSnap.data()?.lida === false).length;
+      setNotifCount(naoLidas);
+    }, (err) => {
+      console.warn('Erro ao escutar notificações da academia', err?.message || err);
+    });
+
+    return () => {
+      unsubTreinos();
+      unsubNotifs();
+    };
+  }, [isAcademyAdmin, profile?.academia_id]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -101,7 +134,9 @@ export default function ProfessorHome({ navigation }) {
       }
 
       if (canManageTreinos) {
-        loadTreinos(uid);
+        loadTreinosProfessor(uid);
+      } else if (isAcademyAdmin) {
+        loadTreinosAcademia(profile?.academia_id);
       } else {
         setTreinos([]);
       }
@@ -114,7 +149,7 @@ export default function ProfessorHome({ navigation }) {
       }
 
       return undefined;
-    }, [isSystemAdmin, canManageAcademyUsers, canManageTreinos])
+    }, [isSystemAdmin, isAcademyAdmin, canManageAcademyUsers, canManageTreinos, profile?.academia_id])
   );
 
   useEffect(() => {
@@ -133,14 +168,16 @@ export default function ProfessorHome({ navigation }) {
 
   async function loadNotificacoes(professorId) {
     try {
-      const count = await contarNaoLidas(professorId);
+      const count = isAcademyAdmin
+        ? await contarNaoLidasAcademia(profile?.academia_id)
+        : await contarNaoLidas(professorId);
       setNotifCount(count);
     } catch (err) {
       console.warn('Erro ao carregar notificações', err);
     }
   }
 
-  async function loadTreinos(professor_id) {
+  async function loadTreinosProfessor(professor_id) {
     try {
       const list = await listTreinosByProfessor(professor_id);
       // Ordenar alfabeticamente por nome_treino
@@ -150,6 +187,18 @@ export default function ProfessorHome({ navigation }) {
       setTreinos([]);
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar os treinos.'));
       console.warn('Erro ao carregar treinos', err?.message || err);
+    }
+  }
+
+  async function loadTreinosAcademia(academiaId) {
+    try {
+      const list = await listTreinosByAcademia(academiaId);
+      list.sort((a, b) => a.nome_treino.localeCompare(b.nome_treino));
+      setTreinos(list);
+    } catch (err) {
+      setTreinos([]);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar os treinos da academia.'));
+      console.warn('Erro ao carregar treinos da academia', err?.message || err);
     }
   }
 
@@ -209,7 +258,7 @@ export default function ProfessorHome({ navigation }) {
       if (successCount > 0) {
         const uid = auth.currentUser?.uid;
         if (uid) {
-          await loadTreinos(uid);
+          await loadTreinosProfessor(uid);
         }
       }
     } finally {
@@ -331,7 +380,8 @@ export default function ProfessorHome({ navigation }) {
           await enviarNotificacao(professor_id, alunoId, 'treino_associado', {
             treino_id: id,
             treino_nome: nomeTreino,
-            professor_nome: profile?.nome || 'Professor'
+            professor_nome: profile?.nome || 'Professor',
+            academia_id: profile?.academia_id || null
           });
         } catch (notifyErr) {
           console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
@@ -340,7 +390,7 @@ export default function ProfessorHome({ navigation }) {
 
       setNomeTreino('');
       setAlunoSelecionadoTreino('');
-      await loadTreinos(professor_id);
+      await loadTreinosProfessor(professor_id);
       Alert.alert('Sucesso', alunoId ? 'Treino criado para o aluno selecionado' : 'Treino modelo criado (sem aluno)');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o treino.'));
@@ -360,7 +410,8 @@ export default function ProfessorHome({ navigation }) {
           await enviarNotificacao(auth.currentUser?.uid, treinoExcluido.aluno_id, 'treino_excluido', {
             treino_id: treinoExcluido.id,
             treino_nome: treinoExcluido.nome_treino || 'Treino',
-            professor_nome: profile?.nome || 'Professor'
+            professor_nome: profile?.nome || 'Professor',
+            academia_id: treinoExcluido.academia_id || profile?.academia_id || null
           });
         } catch (notifyErr) {
           console.warn('Falha ao enviar notificação de treino excluído:', notifyErr?.message || notifyErr);
@@ -431,18 +482,26 @@ export default function ProfessorHome({ navigation }) {
       </View>
 
       {!isSystemAdmin && <View style={styles.statsRow}>
-        {isAcademyAdmin && <View style={styles.statCard}>
-          <Text style={styles.statValue}>{alunos.length}</Text>
-          <Text style={styles.statLabel}>Alunos</Text>
-        </View>}
-        <View style={styles.statCard}>
+        {isAcademyAdmin && (
+          <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('AlunosList')} activeOpacity={0.8}>
+            <Text style={styles.statValue}>{alunos.length}</Text>
+            <Text style={styles.statLabel}>Alunos</Text>
+          </TouchableOpacity>
+        )}
+        {isAcademyAdmin && (
+          <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('ProfessoresList')} activeOpacity={0.8}>
+            <Text style={styles.statValue}>{professores.length}</Text>
+            <Text style={styles.statLabel}>Professores</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('TreinosList')} activeOpacity={0.8}>
           <Text style={styles.statValue}>{treinos.length}</Text>
           <Text style={styles.statLabel}>Treinos</Text>
-        </View>
-        <View style={styles.statCard}>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Notificacoes')} activeOpacity={0.8}>
           <Text style={styles.statValue}>{notifCount}</Text>
           <Text style={styles.statLabel}>Notificações</Text>
-        </View>
+        </TouchableOpacity>
       </View>}
 
       {!isSystemAdmin && isAcademyAdmin && <TouchableOpacity 
