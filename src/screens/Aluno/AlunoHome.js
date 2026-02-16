@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import TreinoCard from '../../components/TreinoCard';
 import { auth } from '../../firebase/config';
 import { onAuthStateChanged } from 'firebase/auth';
-import { listTreinosByAluno } from '../../services/treinoService';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '../../firebase/config';
 import { listItensByTreino } from '../../services/treinoItensService';
 import { contarNaoLidasAluno, notificarResumoSemanalAluno } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -29,11 +30,30 @@ export default function AlunoHome({ navigation }) {
 
   useEffect(() => {
     let interval = null;
+    let unsubscribeTreinos = null;
+    let resumoSemanalChecked = false;
+
+    async function hydrateTreinos(treinosBase) {
+      const tWithItems = await Promise.all(
+        treinosBase.map(async (tr) => {
+          const itens = await listItensByTreino(tr.id);
+          return { ...tr, itens };
+        })
+      );
+
+      setTreinos(tWithItems);
+      return tWithItems;
+    }
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setTreinos([]);
         setNotifCount(0);
         setLoading(false);
+        if (unsubscribeTreinos) {
+          unsubscribeTreinos();
+          unsubscribeTreinos = null;
+        }
         if (interval) {
           clearInterval(interval);
           interval = null;
@@ -42,21 +62,35 @@ export default function AlunoHome({ navigation }) {
       }
 
       try {
-        const t = await listTreinosByAluno(user.uid);
-        // Para cada treino, buscar os itens
-        const tWithItems = await Promise.all(
-          t.map(async (tr) => {
-            const itens = await listItensByTreino(tr.id);
-            return { ...tr, itens };
-          })
-        );
-        setTreinos(tWithItems);
-        try {
-          const professorIdResponsavel = tWithItems[0]?.professor_id || null;
-          await notificarResumoSemanalAluno(user.uid, professorIdResponsavel, profile?.nome || 'Atleta');
-        } catch (resumoErr) {
-          console.warn('Resumo semanal fallback não enviado:', resumoErr?.message || resumoErr);
+        if (unsubscribeTreinos) {
+          unsubscribeTreinos();
+          unsubscribeTreinos = null;
         }
+
+        const treinosQuery = query(collection(db, 'treinos'), where('aluno_id', '==', user.uid));
+        unsubscribeTreinos = onSnapshot(treinosQuery, async (snapshot) => {
+          try {
+            const treinosBase = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+            const tWithItems = await hydrateTreinos(treinosBase);
+
+            if (!resumoSemanalChecked) {
+              resumoSemanalChecked = true;
+              try {
+                const professorIdResponsavel = tWithItems[0]?.professor_id || null;
+                await notificarResumoSemanalAluno(user.uid, professorIdResponsavel, profile?.nome || 'Atleta');
+              } catch (resumoErr) {
+                console.warn('Resumo semanal fallback não enviado:', resumoErr?.message || resumoErr);
+              }
+            }
+          } catch (snapshotErr) {
+            console.warn('Erro ao atualizar treinos em tempo real:', snapshotErr?.message || snapshotErr);
+          } finally {
+            setLoading(false);
+          }
+        }, (snapshotErr) => {
+          console.warn('Erro no listener de treinos:', snapshotErr?.message || snapshotErr);
+          setLoading(false);
+        });
         await loadNotificacoes(user.uid);
         if (interval) clearInterval(interval);
         interval = setInterval(() => loadNotificacoes(user.uid), 30000);
@@ -68,6 +102,7 @@ export default function AlunoHome({ navigation }) {
     });
 
     return () => {
+      if (unsubscribeTreinos) unsubscribeTreinos();
       if (interval) clearInterval(interval);
       unsub();
     };

@@ -17,7 +17,7 @@ jest.mock('../src/services/historicoService', () => ({
 
 const { addDoc, getDocs } = require('firebase/firestore');
 const { listarSessoesFinalizadasNoPeriodo } = require('../src/services/historicoService');
-const { notificarResumoSemanalAluno } = require('../src/services/notificacoesService');
+const { notificarResumoSemanalAluno, enviarNotificacao } = require('../src/services/notificacoesService');
 
 describe('notificacoesService - resumo semanal', () => {
   beforeEach(() => {
@@ -89,5 +89,27 @@ describe('notificacoesService - resumo semanal', () => {
     expect(listarSessoesFinalizadasNoPeriodo).not.toHaveBeenCalled();
     expect(addDoc).not.toHaveBeenCalled();
     expect(resultado).toMatchObject({ enviada: false, motivo: 'fora_do_domingo' });
+  });
+});
+
+describe('notificacoesService - envio direcionado', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('treino_excluido não deve aparecer na caixa do professor', async () => {
+    addDoc.mockResolvedValue({ id: 'notif-excl-1' });
+
+    await enviarNotificacao('prof-1', 'aluno-1', 'treino_excluido', {
+      treino_id: 'treino-1',
+      treino_nome: 'Treino A',
+      professor_nome: 'Professor X'
+    });
+
+    expect(addDoc).toHaveBeenCalledTimes(1);
+    const payload = addDoc.mock.calls[0][1];
+    expect(payload.tipo).toBe('treino_excluido');
+    expect(payload.aluno_id).toBe('aluno-1');
+    expect(payload.professor_id).toBeNull();
   });
 });

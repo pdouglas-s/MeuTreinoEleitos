@@ -227,7 +227,20 @@ export default function TreinoDetail({ route, navigation }) {
   async function handleDeleteTreino() {
     if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode excluir o treino');
     try {
-      await deleteTreino(treino.id);
+      const treinoExcluido = await deleteTreino(treino.id);
+
+      if (treinoExcluido?.aluno_id) {
+        try {
+          await enviarNotificacao(auth.currentUser?.uid, treinoExcluido.aluno_id, 'treino_excluido', {
+            treino_id: treinoExcluido.id,
+            treino_nome: treinoExcluido.nome_treino || treino.nome_treino || 'Treino',
+            professor_nome: profile?.nome || 'Professor'
+          });
+        } catch (notifyErr) {
+          console.warn('Falha ao enviar notificação de treino excluído:', notifyErr?.message || notifyErr);
+        }
+      }
+
       Alert.alert('Sucesso', 'Treino excluído');
       navigation.goBack();
     } catch (err) {

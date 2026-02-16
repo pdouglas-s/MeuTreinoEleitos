@@ -160,9 +160,11 @@ export async function deleteTreino(treino_id) {
   if (!snapshot.exists()) throw new Error('Treino não encontrado');
 
   const data = snapshot.data();
-  if (data?.bloqueado_exclusao === true) {
+  const temVinculoAluno = typeof data?.aluno_id === 'string' && data.aluno_id.trim().length > 0;
+  if (data?.bloqueado_exclusao === true && !temVinculoAluno) {
     throw new Error('Este treino foi convertido de um padrão e não pode ser excluído');
   }
 
   await deleteDoc(ref);
+  return { id: treino_id, ...data };
 }

@@ -11,6 +11,9 @@ jest.mock('../src/services/treinoService', () => ({
   listTreinosByProfessor: jest.fn().mockResolvedValue([{ id: 't1', nome_treino: 'Prof Treino' }]),
   createTreino: jest.fn().mockResolvedValue({ id: 't2' })
 }));
+jest.mock('@react-navigation/native', () => ({
+  useFocusEffect: jest.fn()
+}));
 jest.mock('../src/services/treinoItensService', () => ({ addItemToTreino: jest.fn().mockResolvedValue({ id: 'i1' }) }));
 jest.mock('../src/services/userService', () => ({ createAluno: jest.fn().mockResolvedValue({ uid: 'a1' }) }));
 

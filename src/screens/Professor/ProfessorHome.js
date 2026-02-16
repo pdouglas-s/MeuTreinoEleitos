@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
+import { useFocusEffect } from '@react-navigation/native';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
 import { createAcademia, createAcademiaAdmin, createAluno, createProfessor, deleteProfessorProfile, listAcademias, listAllAlunos, listAllProfessores, unblockBlockedEmail } from '../../services/userService';
-import { createTreino, listTreinosByProfessor, deleteTreino } from '../../services/treinoService';
+import { createTreino, listTreinosByProfessor, deleteTreino, updateTreino } from '../../services/treinoService';
 import { contarNaoLidas, enviarNotificacao } from '../../services/notificacoesService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
@@ -32,6 +33,9 @@ export default function ProfessorHome({ navigation }) {
   const [treinos, setTreinos] = useState([]);
   const [alunos, setAlunos] = useState([]);
   const [alunosMap, setAlunosMap] = useState({});
+  const [alunosLoaded, setAlunosLoaded] = useState(false);
+  const orphanCleanupAttemptsRef = useRef(new Set());
+  const orphanCleanupInFlightRef = useRef(false);
   const [notifCount, setNotifCount] = useState(0);
   const isSystemAdmin = profile?.role === 'admin_sistema';
   const isAcademyAdmin = profile?.role === 'admin_academia';
@@ -52,8 +56,13 @@ export default function ProfessorHome({ navigation }) {
   const createAcademiaDisabled = !nomeAcademia.trim();
   const createAdminAcademiaDisabled = !nomeAdminAcademia.trim() || !emailAdminAcademia.trim() || emailAdminAcademiaInvalido || !academiaSelecionadaAdmin;
   const createTreinoParaAlunoDisabled = !nomeTreino.trim() || !alunoSelecionadoTreino;
-  const treinosModeloCount = treinos.filter((item) => !item.aluno_id).length;
-  const treinosComAlunoCount = treinos.filter((item) => !!item.aluno_id).length;
+  const hasAlunoVinculado = (treino) => !!treino?.aluno_id && !!alunosMap[treino.aluno_id];
+  const treinosModeloCount = alunosLoaded
+    ? treinos.filter((item) => !hasAlunoVinculado(item)).length
+    : treinos.filter((item) => !item.aluno_id).length;
+  const treinosComAlunoCount = alunosLoaded
+    ? treinos.filter((item) => hasAlunoVinculado(item)).length
+    : treinos.filter((item) => !!item.aluno_id).length;
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -80,6 +89,38 @@ export default function ProfessorHome({ navigation }) {
       return () => clearInterval(interval);
     }
   }, [isSystemAdmin, canManageAcademyUsers, canManageTreinos]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return undefined;
+
+      if (isSystemAdmin) {
+        loadAcademias();
+        return undefined;
+      }
+
+      if (canManageTreinos) {
+        loadTreinos(uid);
+      } else {
+        setTreinos([]);
+      }
+
+      loadAlunos();
+      loadNotificacoes(uid);
+
+      if (canManageAcademyUsers) {
+        loadProfessores();
+      }
+
+      return undefined;
+    }, [isSystemAdmin, canManageAcademyUsers, canManageTreinos])
+  );
+
+  useEffect(() => {
+    if (!canManageTreinos || !alunosLoaded || treinos.length === 0) return;
+    cleanupOrphanTreinoLinks(treinos, alunosMap);
+  }, [canManageTreinos, alunosLoaded, treinos, alunosMap]);
 
   async function loadAcademias() {
     try {
@@ -113,6 +154,7 @@ export default function ProfessorHome({ navigation }) {
   }
 
   async function loadAlunos() {
+    setAlunosLoaded(false);
     try {
       const list = await listAllAlunos();
       const sortedList = [...list].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
@@ -125,6 +167,8 @@ export default function ProfessorHome({ navigation }) {
       setAlunosMap(map);
     } catch (err) {
       console.warn('Erro ao carregar alunos', err.message);
+    } finally {
+      setAlunosLoaded(true);
     }
   }
 
@@ -134,6 +178,42 @@ export default function ProfessorHome({ navigation }) {
       setProfessores(list.filter(item => item.nome !== 'ADMIN'));
     } catch (err) {
       console.warn('Erro ao carregar professores', err.message);
+    }
+  }
+
+  async function cleanupOrphanTreinoLinks(treinosList, alunosById) {
+    if (orphanCleanupInFlightRef.current) return;
+
+    const orphanTreinos = treinosList.filter((item) => {
+      const alunoId = String(item?.aluno_id || '').trim();
+      return alunoId && !alunosById[alunoId] && !orphanCleanupAttemptsRef.current.has(item.id);
+    });
+
+    if (orphanTreinos.length === 0) return;
+
+    orphanTreinos.forEach((item) => orphanCleanupAttemptsRef.current.add(item.id));
+    orphanCleanupInFlightRef.current = true;
+
+    try {
+      const results = await Promise.allSettled(
+        orphanTreinos.map((item) => updateTreino(item.id, { aluno_id: '' }))
+      );
+
+      const successCount = results.filter((result) => result.status === 'fulfilled').length;
+      const failCount = results.length - successCount;
+
+      if (failCount > 0) {
+        console.warn(`Falha ao limpar ${failCount} vínculo(s) órfão(s) de treino`);
+      }
+
+      if (successCount > 0) {
+        const uid = auth.currentUser?.uid;
+        if (uid) {
+          await loadTreinos(uid);
+        }
+      }
+    } finally {
+      orphanCleanupInFlightRef.current = false;
     }
   }
 
@@ -276,7 +356,20 @@ export default function ProfessorHome({ navigation }) {
 
   async function handleDeleteTreino(treino_id) {
     try {
-      await deleteTreino(treino_id);
+      const treinoExcluido = await deleteTreino(treino_id);
+
+      if (treinoExcluido?.aluno_id) {
+        try {
+          await enviarNotificacao(auth.currentUser?.uid, treinoExcluido.aluno_id, 'treino_excluido', {
+            treino_id: treinoExcluido.id,
+            treino_nome: treinoExcluido.nome_treino || 'Treino',
+            professor_nome: profile?.nome || 'Professor'
+          });
+        } catch (notifyErr) {
+          console.warn('Falha ao enviar notificação de treino excluído:', notifyErr?.message || notifyErr);
+        }
+      }
+
       setTreinos(treinos.filter(t => t.id !== treino_id));
       Alert.alert('Sucesso', 'Treino excluído');
     } catch (err) {
@@ -496,9 +589,11 @@ export default function ProfessorHome({ navigation }) {
               <TouchableOpacity style={{ flex: 1 }} onPress={() => handleSelectTreino(item)}>
                 <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome_treino}</Text>
                 <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 2 }}>
-                  {item.aluno_id
+                  {(item.aluno_id && !alunosLoaded)
                     ? '👤 Treino vinculado a aluno'
-                    : '📋 Treino modelo (sem aluno)'}
+                    : (hasAlunoVinculado(item)
+                      ? `👤 Treino vinculado: ${alunosMap[item.aluno_id]}`
+                      : '📋 Treino modelo (sem aluno)')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>

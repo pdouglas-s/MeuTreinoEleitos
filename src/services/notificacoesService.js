@@ -74,6 +74,7 @@ function coletarFeedbacks(sessoes) {
  */
 export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const notifRef = collection(db, 'notificacoes');
+  const professorDestinoId = tipo === 'treino_excluido' ? null : professorId;
 
   const intensidadeTexto = {
     1: '😄 Muito leve',
@@ -103,12 +104,15 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
     case 'treino_associado':
       mensagem = `${dados.professor_nome || 'Professor'} associou o treino "${dados.treino_nome}" para você`;
       break;
+    case 'treino_excluido':
+      mensagem = `${dados.professor_nome || 'Professor'} removeu o treino "${dados.treino_nome}" da sua lista`;
+      break;
     default:
       mensagem = 'Nova atividade do aluno';
   }
   
   const docRef = await addDoc(notifRef, {
-    professor_id: professorId,
+    professor_id: professorDestinoId,
     aluno_id: alunoId,
     tipo,
     mensagem,
