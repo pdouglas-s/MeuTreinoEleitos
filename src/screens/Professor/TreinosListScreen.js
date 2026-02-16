@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import theme from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { auth } from '../../firebase/config';
-import { listTreinosByAcademia, listTreinosByProfessor } from '../../services/treinoService';
+import { deleteTreino, listTreinosByAcademia, listTreinosByProfessor } from '../../services/treinoService';
 import { listAllAlunos } from '../../services/userService';
 import { Alert } from '../../utils/alert';
 import { getAuthErrorMessage } from '../../utils/authErrors';
@@ -20,6 +21,13 @@ export default function TreinosListScreen({ navigation }) {
   useEffect(() => {
     carregarDados();
   }, [profile?.role, profile?.academia_id]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      carregarDados();
+      return undefined;
+    }, [profile?.role, profile?.academia_id])
+  );
 
   async function carregarDados() {
     setLoading(true);
@@ -77,6 +85,23 @@ export default function TreinosListScreen({ navigation }) {
     navigation.navigate('TreinoDetail', { treino });
   }
 
+  async function handleDeleteTreino(item) {
+    const confirmado = await Alert.confirm(
+      'Confirmar exclusão',
+      `Deseja realmente excluir o treino "${item?.nome_treino || 'Treino'}"?`,
+      { confirmText: 'Excluir', destructive: true }
+    );
+    if (!confirmado) return;
+
+    try {
+      await deleteTreino(item.id);
+      setTreinos((prev) => prev.filter((treino) => treino.id !== item.id));
+      Alert.alert('Sucesso', 'Treino excluído com sucesso');
+    } catch (err) {
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o treino.'));
+    }
+  }
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -101,14 +126,21 @@ export default function TreinosListScreen({ navigation }) {
         data={treinosFiltrados}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.itemRow} onPress={() => handleOpenTreino(item)} activeOpacity={0.8}>
-            <Text style={styles.itemNome}>{item.nome_treino}</Text>
-            <Text style={styles.itemSub}>
-              {item.aluno_id && alunosMap[item.aluno_id]
-                ? `👤 ${alunosMap[item.aluno_id]}`
-                : '📋 Treino modelo (sem aluno)'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.itemRow}>
+            <TouchableOpacity style={styles.itemContent} onPress={() => handleOpenTreino(item)} activeOpacity={0.8}>
+              <Text style={styles.itemNome}>{item.nome_treino}</Text>
+              <Text style={styles.itemSub}>
+                {item.aluno_id && alunosMap[item.aluno_id]
+                  ? `👤 ${alunosMap[item.aluno_id]}`
+                  : '📋 Treino modelo (sem aluno)'}
+              </Text>
+            </TouchableOpacity>
+            {!String(item?.aluno_id || '').trim() && (
+              <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteTreino(item)}>
+                <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
         ListEmptyComponent={<Text style={styles.emptyHint}>Nenhum treino encontrado.</Text>}
       />
@@ -152,9 +184,12 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     borderRadius: theme.radii.sm,
     backgroundColor: theme.colors.card,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 10,
     marginBottom: 6
+  },
+  itemContent: {
+    flex: 1
   },
   itemNome: {
     fontSize: 15,
@@ -170,5 +205,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: theme.colors.muted
+  },
+  deleteBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: theme.colors.background
+  },
+  deleteBtnText: {
+    color: theme.colors.danger,
+    fontSize: 12,
+    fontWeight: '600'
   }
 });

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -64,27 +64,6 @@ export default function ProfessorHome({ navigation }) {
   const treinosComAlunoCount = alunosLoaded
     ? treinos.filter((item) => hasAlunoVinculado(item)).length
     : treinos.filter((item) => !!item.aluno_id).length;
-  const treinosOrdenadosProfessor = useMemo(() => {
-    if (!canManageTreinos) return treinos;
-
-    const normalize = (value) => String(value || '').trim().toLowerCase();
-
-    return [...treinos].sort((a, b) => {
-      const alunoA = normalize(alunosMap[a?.aluno_id]);
-      const alunoB = normalize(alunosMap[b?.aluno_id]);
-      const temAlunoA = !!alunoA;
-      const temAlunoB = !!alunoB;
-
-      if (temAlunoA && temAlunoB && alunoA !== alunoB) {
-        return alunoA.localeCompare(alunoB);
-      }
-
-      if (temAlunoA && !temAlunoB) return -1;
-      if (!temAlunoA && temAlunoB) return 1;
-
-      return normalize(a?.nome_treino).localeCompare(normalize(b?.nome_treino));
-    });
-  }, [canManageTreinos, treinos, alunosMap]);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -439,57 +418,6 @@ export default function ProfessorHome({ navigation }) {
     }
   }
 
-  function handleSelectTreino(treino) {
-    navigation.navigate('TreinoDetail', { treino });
-  }
-
-  async function handleDeleteTreino(treino_id) {
-    try {
-      const treinoExcluido = await deleteTreino(treino_id);
-      const alunoNome = treinoExcluido?.aluno_id ? (alunosMap[treinoExcluido.aluno_id] || null) : null;
-
-      if (treinoExcluido?.aluno_id) {
-        try {
-          await enviarNotificacao(auth.currentUser?.uid, treinoExcluido.aluno_id, 'treino_excluido', {
-            treino_id: treinoExcluido.id,
-            treino_nome: treinoExcluido.nome_treino || 'Treino',
-            professor_nome: profile?.nome || 'Professor',
-            academia_id: treinoExcluido.academia_id || profile?.academia_id || null
-          });
-        } catch (notifyErr) {
-          console.warn('Falha ao enviar notificação de treino excluído:', notifyErr?.message || notifyErr);
-        }
-      }
-
-      try {
-        await enviarNotificacao(auth.currentUser?.uid, null, 'treino_excluido_academia', {
-          treino_id: treinoExcluido.id,
-          treino_nome: treinoExcluido.nome_treino || 'Treino',
-          professor_nome: profile?.nome || 'Professor',
-          aluno_nome: alunoNome,
-          academia_id: treinoExcluido.academia_id || profile?.academia_id || null
-        });
-      } catch (notifyErr) {
-        console.warn('Falha ao enviar notificação de exclusão para academia:', notifyErr?.message || notifyErr);
-      }
-
-      setTreinos(treinos.filter(t => t.id !== treino_id));
-      Alert.alert('Sucesso', 'Treino excluído');
-    } catch (err) {
-      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o treino.'));
-    }
-  }
-
-  async function confirmDelete(treino) {
-    const confirmado = await Alert.confirm(
-      'Confirmar exclusão',
-      `Deseja realmente excluir o treino "${treino.nome_treino}"?`,
-      { confirmText: 'Excluir', destructive: true }
-    );
-    if (!confirmado) return;
-    handleDeleteTreino(treino.id);
-  }
-
   async function handleLogout() {
     try {
       await logout();
@@ -552,6 +480,8 @@ export default function ProfessorHome({ navigation }) {
         <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('TreinosList')} activeOpacity={0.8}>
           <Text style={styles.statValue}>{treinos.length}</Text>
           <Text style={styles.statLabel}>Treinos</Text>
+          <Text style={styles.statMetaText}>📋 Modelos: {treinosModeloCount}</Text>
+          <Text style={styles.statMetaText}>👤 Associados: {treinosComAlunoCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Notificacoes')} activeOpacity={0.8}>
           <Text style={styles.statValue}>{notifCount}</Text>
@@ -680,37 +610,8 @@ export default function ProfessorHome({ navigation }) {
           onPress={() => handleCreateTreino(alunoSelecionadoTreino)}
           disabled={createTreinoParaAlunoDisabled}
         />
-        <View style={styles.quickInfoRow}>
-          <Text style={styles.quickInfoText}>📋 Modelos: {treinosModeloCount}</Text>
-          <Text style={styles.quickInfoText}>👤 Vinculados: {treinosComAlunoCount}</Text>
-        </View>
       </View>}
 
-      {!isSystemAdmin && canManageTreinos && <View style={styles.cardBlock}>
-        <Text style={styles.blockTitle}>Seus Treinos</Text>
-        <FlatList
-          data={treinosOrdenadosProfessor}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.treinoRow}>
-              <TouchableOpacity style={{ flex: 1 }} onPress={() => handleSelectTreino(item)}>
-                <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome_treino}</Text>
-                <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 2 }}>
-                  {(item.aluno_id && !alunosLoaded)
-                    ? '👤 Treino vinculado a aluno'
-                    : (hasAlunoVinculado(item)
-                      ? `👤 Treino vinculado: ${alunosMap[item.aluno_id]}`
-                      : '📋 Treino modelo (sem aluno)')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
-                <Text style={styles.deleteText}>🗑️ Excluir</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        />
-        {treinos.length === 0 && <Text style={styles.emptyHint}>Nenhum treino criado ainda.</Text>}
-      </View>}
     </View>
   );
 }
@@ -759,6 +660,12 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.sm,
     color: theme.colors.muted,
     marginTop: 2
+  },
+  statMetaText: {
+    fontSize: 11,
+    color: theme.colors.muted,
+    marginTop: 2,
+    fontWeight: '600'
   },
   reportCard: {
     flexDirection: 'row',
@@ -916,16 +823,6 @@ const styles = StyleSheet.create({
   },
   picker: {
     width: '100%'
-  },
-  quickInfoRow: {
-    marginTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between'
-  },
-  quickInfoText: {
-    color: theme.colors.muted,
-    fontSize: 12,
-    fontWeight: '600'
   },
   emptyHint: {
     color: theme.colors.muted,

@@ -64,6 +64,13 @@ service cloud.firestore {
         || treinoData.is_padrao == true
         || treinoData.aluno_id == request.auth.uid
         || (hasProfile() && isSameAcademia(treinoData.academia_id))
+        || (
+          isAcademyStaff()
+          && treinoData.aluno_id is string
+          && treinoData.aluno_id != ''
+          && exists(/databases/$(database)/documents/users/$(treinoData.aluno_id))
+          && isSameAcademia(get(/databases/$(database)/documents/users/$(treinoData.aluno_id)).data.academia_id)
+        )
       );
     }
 
@@ -139,6 +146,10 @@ service cloud.firestore {
         )
         && request.resource.data.role == resource.data.role
         && (
+          resource.data.role != 'aluno'
+          || request.resource.data.email == resource.data.email
+        )
+        && (
           !request.resource.data.keys().hasAny(['academia_id'])
           || request.resource.data.academia_id == resource.data.academia_id
         )
@@ -158,7 +169,7 @@ service cloud.firestore {
           )
           || (
             isAcademyAdmin()
-            && resource.data.role == 'professor'
+            && (resource.data.role == 'professor' || resource.data.role == 'aluno')
             && isSameAcademia(resource.data.academia_id)
           )
         );

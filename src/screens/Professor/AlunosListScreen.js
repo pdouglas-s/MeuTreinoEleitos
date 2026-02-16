@@ -12,7 +12,6 @@ export default function AlunosListScreen() {
   const [selecionadoId, setSelecionadoId] = useState('');
   const [editandoId, setEditandoId] = useState('');
   const [editNome, setEditNome] = useState('');
-  const [editEmail, setEditEmail] = useState('');
 
   useEffect(() => {
     carregarAlunos();
@@ -44,18 +43,16 @@ export default function AlunosListScreen() {
   function iniciarEdicao(aluno) {
     setEditandoId(aluno.id);
     setEditNome(String(aluno?.nome || ''));
-    setEditEmail(String(aluno?.email || ''));
   }
 
   function cancelarEdicao() {
     setEditandoId('');
     setEditNome('');
-    setEditEmail('');
   }
 
   async function salvarEdicao(alunoId) {
     try {
-      await updateManagedUserProfile({ userId: alunoId, nome: editNome, email: editEmail });
+      await updateManagedUserProfile({ userId: alunoId, nome: editNome });
       Alert.alert('Sucesso', 'Aluno atualizado com sucesso');
       cancelarEdicao();
       await carregarAlunos();
@@ -134,14 +131,7 @@ export default function AlunosListScreen() {
                   value={editNome}
                   onChangeText={setEditNome}
                 />
-                <TextInput
-                  placeholder="E-mail"
-                  style={styles.inputEdit}
-                  value={editEmail}
-                  onChangeText={setEditEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                />
+                <Text style={styles.editHint}>E-mail do aluno não pode ser alterado.</Text>
                 <View style={styles.actionsRow}>
                   <TouchableOpacity style={styles.saveBtn} onPress={() => salvarEdicao(item.id)}>
                     <Text style={styles.saveBtnText}>Salvar</Text>
@@ -255,6 +245,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.sm,
     padding: 10,
     backgroundColor: theme.colors.background,
+    marginBottom: 8
+  },
+  editHint: {
+    fontSize: 12,
+    color: theme.colors.muted,
     marginBottom: 8
   },
   saveBtn: {

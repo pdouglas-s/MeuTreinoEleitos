@@ -284,8 +284,74 @@ export async function deleteAlunoProfile(alunoId) {
   const alunoIdNormalizado = String(alunoId || '').trim();
   if (!alunoIdNormalizado) throw new Error('Aluno inválido');
 
-  const callable = httpsCallable(functions, 'deleteAlunoProfileSecure');
-  await callable({ alunoId: alunoIdNormalizado });
+  const deleteByFirestore = async () => {
+    const ref = doc(db, 'users', alunoIdNormalizado);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('Aluno não encontrado');
+
+    const data = snap.data();
+    if (data.role !== ROLE_ALUNO) {
+      throw new Error('O usuário informado não é aluno');
+    }
+
+    const minhaAcademia = await getCurrentUserAcademiaId();
+    if (minhaAcademia && data.academia_id !== minhaAcademia) {
+      throw new Error('Sem permissão para excluir usuário de outra academia');
+    }
+
+    const treinosCol = collection(db, 'treinos');
+    const treinoAssociadoQ = query(treinosCol, where('aluno_id', '==', alunoIdNormalizado), limit(1));
+    const treinoAssociadoSnap = await getDocs(treinoAssociadoQ);
+    if (!treinoAssociadoSnap.empty) {
+      throw new Error('Não é possível excluir aluno com treino associado');
+    }
+
+    const emailNormalizado = normalizeEmail(data.email || '');
+    if (emailNormalizado) {
+      await setDoc(doc(db, 'emails_bloqueados', emailNormalizado), {
+        email: emailNormalizado,
+        blocked_at: serverTimestamp(),
+        blocked_by: auth.currentUser?.uid || null,
+        reason: 'aluno_deleted_firestore_only'
+      }, { merge: true });
+    }
+
+    await deleteDoc(ref);
+  };
+
+  const isWebLocalhost = (() => {
+    try {
+      const host = String(globalThis?.location?.host || '').toLowerCase();
+      return host.includes('localhost') || host.includes('127.0.0.1');
+    } catch (_) {
+      return false;
+    }
+  })();
+
+  try {
+    if (!functions || isWebLocalhost) {
+      await deleteByFirestore();
+      return;
+    }
+
+    const callable = httpsCallable(functions, 'deleteAlunoProfileSecure');
+    await callable({ alunoId: alunoIdNormalizado });
+  } catch (error) {
+    const code = String(error?.code || '').toLowerCase();
+    const message = String(error?.message || '').toLowerCase();
+    const shouldFallback =
+      code.includes('functions/unavailable')
+      || code.includes('functions/not-found')
+      || code.includes('not-found')
+      || code.includes('unavailable')
+      || message.includes('cors')
+      || message.includes('failed to fetch')
+      || message.includes('network');
+
+    if (!shouldFallback) throw error;
+
+    await deleteByFirestore();
+  }
 }
 
 export async function updateManagedUserProfile({ userId, nome, email }) {
@@ -313,10 +379,20 @@ export async function updateManagedUserProfile({ userId, nome, email }) {
     payload.nome = nomeNormalizado.toUpperCase();
   }
 
+  if (data.role === ROLE_ALUNO && email !== undefined) {
+    const emailAtual = normalizeEmail(data.email || '');
+    const emailSolicitado = normalizeEmail(email);
+    if (emailSolicitado !== emailAtual) {
+      throw new Error('Não é permitido alterar o e-mail do aluno. Apenas o nome pode ser atualizado');
+    }
+  }
+
   if (email !== undefined) {
     const emailNormalizado = normalizeEmail(email);
     if (!isValidEmail(emailNormalizado)) throw new Error('E-mail inválido');
-    payload.email = emailNormalizado;
+    if (data.role !== ROLE_ALUNO) {
+      payload.email = emailNormalizado;
+    }
   }
 
   if (!Object.keys(payload).length) return;
@@ -483,6 +559,8 @@ export async function getSystemDashboardStats() {
   const totalProfessores = users.filter((u) => u.role === ROLE_PROFESSOR).length;
   const totalAdminsAcademia = users.filter((u) => u.role === ROLE_ADMIN_ACADEMIA).length;
   const totalTreinos = treinos.length;
+  const totalTreinosModelo = treinos.filter((t) => !String(t?.aluno_id || '').trim()).length;
+  const totalTreinosVinculados = treinos.filter((t) => String(t?.aluno_id || '').trim().length > 0).length;
   const totalNotificacoes = notificacoes.length;
   const mediaAlunosPorAcademia = totalAcademias > 0 ? Number((totalAlunos / totalAcademias).toFixed(1)) : 0;
   const academiaComMaisAlunos = porAcademia.length > 0 ? porAcademia.slice().sort((a, b) => b.alunos - a.alunos)[0] : null;
@@ -494,6 +572,8 @@ export async function getSystemDashboardStats() {
       total_professores: totalProfessores,
       total_admins_academia: totalAdminsAcademia,
       total_treinos: totalTreinos,
+      total_treinos_modelo: totalTreinosModelo,
+      total_treinos_vinculados: totalTreinosVinculados,
       total_notificacoes: totalNotificacoes,
       media_alunos_por_academia: mediaAlunosPorAcademia,
       academia_com_mais_alunos: academiaComMaisAlunos

@@ -228,6 +228,32 @@ exports[`ProfessorHome render snapshot (flow básico) 1`] = `
       >
         Treinos
       </Text>
+      <Text
+        style={
+          {
+            "color": "#6b7280",
+            "fontSize": 11,
+            "fontWeight": "600",
+            "marginTop": 2,
+          }
+        }
+      >
+        📋 Modelos: 
+        0
+      </Text>
+      <Text
+        style={
+          {
+            "color": "#6b7280",
+            "fontSize": 11,
+            "fontWeight": "600",
+            "marginTop": 2,
+          }
+        }
+      >
+        👤 Associados: 
+        0
+      </Text>
     </View>
     <View
       accessibilityState={
@@ -624,96 +650,6 @@ exports[`ProfessorHome render snapshot (flow básico) 1`] = `
         </Text>
       </View>
     </View>
-    <View
-      style={
-        {
-          "flexDirection": "row",
-          "justifyContent": "space-between",
-          "marginTop": 10,
-        }
-      }
-    >
-      <Text
-        style={
-          {
-            "color": "#6b7280",
-            "fontSize": 12,
-            "fontWeight": "600",
-          }
-        }
-      >
-        📋 Modelos: 
-        0
-      </Text>
-      <Text
-        style={
-          {
-            "color": "#6b7280",
-            "fontSize": 12,
-            "fontWeight": "600",
-          }
-        }
-      >
-        👤 Vinculados: 
-        0
-      </Text>
-    </View>
-  </View>
-  <View
-    style={
-      {
-        "backgroundColor": "#ffffff",
-        "borderColor": "#e5e7eb",
-        "borderRadius": 8,
-        "borderWidth": 1,
-        "marginBottom": 12,
-        "padding": 12,
-      }
-    }
-  >
-    <Text
-      style={
-        {
-          "color": "#111827",
-          "fontSize": 16,
-          "fontWeight": "700",
-          "marginBottom": 4,
-        }
-      }
-    >
-      Seus Treinos
-    </Text>
-    <RCTScrollView
-      data={[]}
-      getItem={[Function]}
-      getItemCount={[Function]}
-      keyExtractor={[Function]}
-      onContentSizeChange={[Function]}
-      onLayout={[Function]}
-      onMomentumScrollBegin={[Function]}
-      onMomentumScrollEnd={[Function]}
-      onScroll={[Function]}
-      onScrollBeginDrag={[Function]}
-      onScrollEndDrag={[Function]}
-      removeClippedSubviews={false}
-      renderItem={[Function]}
-      scrollEventThrottle={50}
-      stickyHeaderIndices={[]}
-      viewabilityConfigCallbackPairs={[]}
-    >
-      <View />
-    </RCTScrollView>
-    <Text
-      style={
-        {
-          "color": "#6b7280",
-          "fontSize": 12,
-          "marginTop": 8,
-        }
-      }
-    >
-      Nenhum treino criado ainda.
-    </Text>
   </View>
 </View>
 `;

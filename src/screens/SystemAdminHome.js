@@ -8,12 +8,15 @@ import { getAuthErrorMessage } from '../utils/authErrors';
 import { createAcademia, createAcademiaAdmin, getSystemDashboardStats } from '../services/userService';
 import { isValidEmail } from '../utils/validation';
 
-function InfoCard({ title, value, subtitle }) {
+function InfoCard({ title, value, subtitle, extraLines = [] }) {
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>{title}</Text>
       <Text style={styles.cardValue}>{value}</Text>
       {!!subtitle && <Text style={styles.cardSubtitle}>{subtitle}</Text>}
+      {extraLines.map((line) => (
+        <Text key={line} style={styles.cardMeta}>{line}</Text>
+      ))}
     </View>
   );
 }
@@ -159,7 +162,15 @@ export default function SystemAdminHome({ navigation }) {
             <InfoCard title="Admins Academia" value={resumo.total_admins_academia || 0} subtitle="Gestores por academia" />
           </View>
           <View style={styles.gridRow}>
-            <InfoCard title="Treinos" value={resumo.total_treinos || 0} subtitle="Treinos cadastrados" />
+            <InfoCard
+              title="Treinos"
+              value={resumo.total_treinos || 0}
+              subtitle="Treinos cadastrados"
+              extraLines={[
+                `📋 Modelos: ${resumo.total_treinos_modelo || 0}`,
+                `👤 Associados: ${resumo.total_treinos_vinculados || 0}`
+              ]}
+            />
             <InfoCard title="Notificações" value={resumo.total_notificacoes || 0} subtitle="Eventos registrados" />
           </View>
 
@@ -261,6 +272,12 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     fontSize: 12,
     marginTop: 2
+  },
+  cardMeta: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '600'
   },
   cardBlock: {
     backgroundColor: theme.colors.card,

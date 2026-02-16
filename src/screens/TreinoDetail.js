@@ -56,6 +56,7 @@ export default function TreinoDetail({ route, navigation }) {
   // Lista de alunos
   const [alunos, setAlunos] = useState([]);
   const [alunoSelecionado, setAlunoSelecionado] = useState(treino.aluno_id || '');
+  const temAlunoAssociado = String(treino?.aluno_id || '').trim().length > 0;
 
   useEffect(() => {
     navigation.setOptions({ title: treino.nome_treino });
@@ -324,6 +325,16 @@ export default function TreinoDetail({ route, navigation }) {
   async function handleDeleteTreino() {
     if (!ensureCanEditTreino()) return;
     try {
+      const alunoAssociadoId = String(treino?.aluno_id || '').trim();
+      if (alunoAssociadoId) {
+        await updateTreino(treino.id, { aluno_id: '' });
+        treino.aluno_id = '';
+        setAlunoSelecionado('');
+        Alert.alert('Sucesso', 'Associação entre treino e aluno removida');
+        navigation.goBack();
+        return;
+      }
+
       const treinoExcluido = await deleteTreino(treino.id);
       const alunoNome = treinoExcluido?.aluno_id
         ? (alunos.find((item) => item.id === treinoExcluido.aluno_id)?.nome || null)
@@ -362,10 +373,16 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   async function confirmDeleteTreino() {
+    const possuiAlunoVinculado = String(treino?.aluno_id || '').trim().length > 0;
+    const alunoNomeAssociado = possuiAlunoVinculado
+      ? (alunos.find((item) => item.id === treino.aluno_id)?.nome || 'aluno associado')
+      : '';
     const confirmado = await Alert.confirm(
       'Confirmar exclusão',
-      `Deseja realmente excluir o treino "${treino.nome_treino}"? Todos os exercícios serão perdidos.`,
-      { confirmText: 'Excluir', destructive: true }
+      possuiAlunoVinculado
+        ? `Deseja remover a associação do treino "${treino.nome_treino}" com ${alunoNomeAssociado}?`
+        : `Deseja realmente excluir o treino "${treino.nome_treino}"? Todos os exercícios serão perdidos.`,
+      { confirmText: possuiAlunoVinculado ? 'Remover associação' : 'Excluir', destructive: true }
     );
     if (!confirmado) return;
     handleDeleteTreino();
@@ -496,7 +513,9 @@ export default function TreinoDetail({ route, navigation }) {
 
       {isProfessor && (
         <TouchableOpacity style={styles.deleteButton} onPress={confirmDeleteTreino}>
-          <Text style={styles.deleteButtonText}>🗑️ Excluir Treino</Text>
+          <Text style={styles.deleteButtonText}>
+            {temAlunoAssociado ? '🗑️ Excluir associação' : '🗑️ Excluir Treino'}
+          </Text>
         </TouchableOpacity>
       )}
     </ScrollView>

@@ -310,9 +310,12 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       <View style={styles.headerRow}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{treino.nome_treino}</Text>
-          <TouchableOpacity style={styles.openBtn} onPress={handleAbrirDetalhes}>
-            <Text style={styles.openBtnText}>{modoCompacto ? (detalhesAbertos ? 'Fechar' : 'Abrir') : 'Abrir'}</Text>
-          </TouchableOpacity>
+          {/* Só mostra o botão Abrir se houver exercícios */}
+          {Array.isArray(treino.itens) && treino.itens.length > 0 && (
+            <TouchableOpacity style={styles.openBtn} onPress={handleAbrirDetalhes}>
+              <Text style={styles.openBtnText}>{modoCompacto ? (detalhesAbertos ? 'Fechar' : 'Abrir') : 'Abrir'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.statusRow}>
           {sessaoId && <Ionicons name="fitness" size={18} color={theme.colors.primary} style={{ marginRight: 6 }} />}
