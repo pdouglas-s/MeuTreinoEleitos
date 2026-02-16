@@ -31,6 +31,20 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
     carregarSessaoAtiva();
   }, [treino.id]);
 
+  useEffect(() => {
+    const itensTreino = treino.itens || [];
+    setExercicios((prev) => {
+      if (!sessaoId) {
+        return itensTreino.map((item) => ({ ...item, done: false }));
+      }
+
+      return itensTreino.map((item) => {
+        const exercicioAnterior = prev.find((prevItem) => prevItem.id === item.id || prevItem.exercicio_nome === item.exercicio_nome);
+        return { ...item, done: !!exercicioAnterior?.done };
+      });
+    });
+  }, [treino.itens, sessaoId]);
+
   async function carregarSessaoAtiva() {
     try {
       const sessao = await buscarSessaoAtiva(treino.id, alunoId);

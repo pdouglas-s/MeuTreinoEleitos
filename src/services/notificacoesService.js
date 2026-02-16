@@ -74,7 +74,8 @@ function coletarFeedbacks(sessoes) {
  */
 export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const notifRef = collection(db, 'notificacoes');
-  const professorDestinoId = tipo === 'treino_excluido' ? null : professorId;
+  const tiposSomenteAluno = ['treino_associado', 'treino_atualizado', 'treino_excluido'];
+  const professorDestinoId = tiposSomenteAluno.includes(tipo) ? null : professorId;
 
   const intensidadeTexto = {
     1: '😄 Muito leve',
@@ -103,6 +104,9 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
       break;
     case 'treino_associado':
       mensagem = `${dados.professor_nome || 'Professor'} associou o treino "${dados.treino_nome}" para você`;
+      break;
+    case 'treino_atualizado':
+      mensagem = `${dados.professor_nome || 'Professor'} atualizou o treino "${dados.treino_nome}"`;
       break;
     case 'treino_excluido':
       mensagem = `${dados.professor_nome || 'Professor'} removeu o treino "${dados.treino_nome}" da sua lista`;

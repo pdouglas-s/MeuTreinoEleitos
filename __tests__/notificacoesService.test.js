@@ -97,6 +97,38 @@ describe('notificacoesService - envio direcionado', () => {
     jest.clearAllMocks();
   });
 
+  test('treino_associado deve aparecer apenas para aluno', async () => {
+    addDoc.mockResolvedValue({ id: 'notif-assoc-1' });
+
+    await enviarNotificacao('prof-1', 'aluno-1', 'treino_associado', {
+      treino_id: 'treino-1',
+      treino_nome: 'Treino A',
+      professor_nome: 'Professor X'
+    });
+
+    expect(addDoc).toHaveBeenCalledTimes(1);
+    const payload = addDoc.mock.calls[0][1];
+    expect(payload.tipo).toBe('treino_associado');
+    expect(payload.aluno_id).toBe('aluno-1');
+    expect(payload.professor_id).toBeNull();
+  });
+
+  test('treino_atualizado deve aparecer apenas para aluno', async () => {
+    addDoc.mockResolvedValue({ id: 'notif-upd-1' });
+
+    await enviarNotificacao('prof-1', 'aluno-1', 'treino_atualizado', {
+      treino_id: 'treino-1',
+      treino_nome: 'Treino A',
+      professor_nome: 'Professor X'
+    });
+
+    expect(addDoc).toHaveBeenCalledTimes(1);
+    const payload = addDoc.mock.calls[0][1];
+    expect(payload.tipo).toBe('treino_atualizado');
+    expect(payload.aluno_id).toBe('aluno-1');
+    expect(payload.professor_id).toBeNull();
+  });
+
   test('treino_excluido não deve aparecer na caixa do professor', async () => {
     addDoc.mockResolvedValue({ id: 'notif-excl-1' });
 

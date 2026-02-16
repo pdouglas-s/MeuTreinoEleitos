@@ -7,7 +7,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { listItensByTreino } from '../../services/treinoItensService';
-import { contarNaoLidasAluno, notificarResumoSemanalAluno } from '../../services/notificacoesService';
+import { notificarResumoSemanalAluno } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
 import { getAuthErrorMessage } from '../../utils/authErrors';
@@ -19,19 +19,37 @@ export default function AlunoHome({ navigation }) {
   const [treinos, setTreinos] = useState([]);
   const [notifCount, setNotifCount] = useState(0);
 
-  async function loadNotificacoes(alunoId) {
-    try {
-      const count = await contarNaoLidasAluno(alunoId);
-      setNotifCount(count);
-    } catch (err) {
-      console.warn('Erro ao carregar notificações do aluno:', err?.message || err);
-    }
-  }
-
   useEffect(() => {
-    let interval = null;
     let unsubscribeTreinos = null;
+    let unsubscribeNotificacoes = null;
+    let unsubscribeItens = [];
     let resumoSemanalChecked = false;
+
+    function clearItensListeners() {
+      unsubscribeItens.forEach((unsubItem) => {
+        try {
+          unsubItem();
+        } catch (_) {
+          // noop
+        }
+      });
+      unsubscribeItens = [];
+    }
+
+    function watchItensPorTreino(treinosBase) {
+      clearItensListeners();
+      unsubscribeItens = treinosBase.map((treinoBase) => {
+        const itensQuery = query(collection(db, 'treino_itens'), where('treino_id', '==', treinoBase.id));
+        return onSnapshot(itensQuery, (itensSnapshot) => {
+          const itens = itensSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+          setTreinos((prev) => prev.map((treinoAtual) => (
+            treinoAtual.id === treinoBase.id ? { ...treinoAtual, itens } : treinoAtual
+          )));
+        }, (snapshotErr) => {
+          console.warn('Erro no listener de itens do treino:', snapshotErr?.message || snapshotErr);
+        });
+      });
+    }
 
     async function hydrateTreinos(treinosBase) {
       const tWithItems = await Promise.all(
@@ -54,10 +72,11 @@ export default function AlunoHome({ navigation }) {
           unsubscribeTreinos();
           unsubscribeTreinos = null;
         }
-        if (interval) {
-          clearInterval(interval);
-          interval = null;
+        if (unsubscribeNotificacoes) {
+          unsubscribeNotificacoes();
+          unsubscribeNotificacoes = null;
         }
+        clearItensListeners();
         return;
       }
 
@@ -72,6 +91,7 @@ export default function AlunoHome({ navigation }) {
           try {
             const treinosBase = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
             const tWithItems = await hydrateTreinos(treinosBase);
+            watchItensPorTreino(treinosBase);
 
             if (!resumoSemanalChecked) {
               resumoSemanalChecked = true;
@@ -91,9 +111,22 @@ export default function AlunoHome({ navigation }) {
           console.warn('Erro no listener de treinos:', snapshotErr?.message || snapshotErr);
           setLoading(false);
         });
-        await loadNotificacoes(user.uid);
-        if (interval) clearInterval(interval);
-        interval = setInterval(() => loadNotificacoes(user.uid), 30000);
+
+        if (unsubscribeNotificacoes) {
+          unsubscribeNotificacoes();
+          unsubscribeNotificacoes = null;
+        }
+
+        const notificacoesNaoLidasQuery = query(
+          collection(db, 'notificacoes'),
+          where('aluno_id', '==', user.uid),
+          where('lida', '==', false)
+        );
+        unsubscribeNotificacoes = onSnapshot(notificacoesNaoLidasQuery, (snapshot) => {
+          setNotifCount(snapshot.size);
+        }, (snapshotErr) => {
+          console.warn('Erro no listener de notificações:', snapshotErr?.message || snapshotErr);
+        });
       } catch (err) {
         console.warn('Erro ao listar treinos:', err.message);
       } finally {
@@ -103,7 +136,8 @@ export default function AlunoHome({ navigation }) {
 
     return () => {
       if (unsubscribeTreinos) unsubscribeTreinos();
-      if (interval) clearInterval(interval);
+      if (unsubscribeNotificacoes) unsubscribeNotificacoes();
+      clearItensListeners();
       unsub();
     };
   }, []);
@@ -135,7 +169,6 @@ export default function AlunoHome({ navigation }) {
             style={styles.notifBtn}
             onPress={() => {
               navigation.navigate('Notificacoes');
-              loadNotificacoes(auth.currentUser?.uid);
             }}
           >
             <Ionicons name="notifications" size={22} color={theme.colors.primary} />

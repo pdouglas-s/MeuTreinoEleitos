@@ -183,6 +183,7 @@ export default function TreinoDetail({ route, navigation }) {
     if (!editNome) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
       const alunoAnterior = treino.aluno_id || '';
+      const alunoDestinoId = alunoSelecionado || treino.aluno_id || '';
 
       if (alunoSelecionado && alunoSelecionado !== alunoAnterior) {
         confirmCreateNovoVinculo(() => {
@@ -214,6 +215,16 @@ export default function TreinoDetail({ route, navigation }) {
           });
         } catch (notifyErr) {
           console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
+        }
+      } else if (alunoDestinoId) {
+        try {
+          await enviarNotificacao(auth.currentUser?.uid, alunoDestinoId, 'treino_atualizado', {
+            treino_id: treino.id,
+            treino_nome: editNome,
+            professor_nome: profile?.nome || 'Professor'
+          });
+        } catch (notifyErr) {
+          console.warn('Falha ao enviar notificação de treino atualizado:', notifyErr?.message || notifyErr);
         }
       }
 

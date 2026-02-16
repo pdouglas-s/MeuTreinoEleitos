@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../theme';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { listarNotificacoesProfessor, listarNotificacoesAluno, marcarComoLida, marcarTodasComoLidas, marcarTodasComoLidasAluno } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
-import { auth } from '../../firebase/config';
+import { auth, db } from '../../firebase/config';
 
 export default function NotificacoesScreen({ navigation }) {
   const { profile } = useAuth();
@@ -20,7 +21,28 @@ export default function NotificacoesScreen({ navigation }) {
       setLoading(false);
       return;
     }
-    carregarNotificacoes();
+
+    const filtro = isProfessor
+      ? query(collection(db, 'notificacoes'), where('professor_id', '==', userId))
+      : query(collection(db, 'notificacoes'), where('aluno_id', '==', userId));
+
+    const unsubscribe = onSnapshot(filtro, (snapshot) => {
+      const notifs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+      notifs.sort((a, b) => {
+        const dateA = a?.created_at?.toDate ? a.created_at.toDate() : new Date(a?.created_at || 0);
+        const dateB = b?.created_at?.toDate ? b.created_at.toDate() : new Date(b?.created_at || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+      setNotificacoes(notifs);
+      setLoading(false);
+      setRefreshing(false);
+    }, (err) => {
+      console.error('Erro ao escutar notificações:', err);
+      setLoading(false);
+      setRefreshing(false);
+    });
+
+    return () => unsubscribe();
   }, [userId, isProfessor]);
 
   async function carregarNotificacoes() {
@@ -92,6 +114,8 @@ export default function NotificacoesScreen({ navigation }) {
         return { name: 'trophy', color: '#f59e0b' };
       case 'treino_associado':
         return { name: 'clipboard', color: '#0ea5a4' };
+      case 'treino_atualizado':
+        return { name: 'create', color: '#2563eb' };
       case 'treino_excluido':
         return { name: 'trash', color: '#ef4444' };
       case 'resumo_semanal':
