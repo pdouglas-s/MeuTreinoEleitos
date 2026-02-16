@@ -82,6 +82,12 @@ async function ensureAdmin(uid) {
   return data.role === 'professor' && data.nome === 'ADMIN';
 }
 
+async function getUserProfile(uid) {
+  const snapshot = await admin.firestore().collection('users').doc(uid).get();
+  if (!snapshot.exists) return null;
+  return { id: snapshot.id, ...snapshot.data() };
+}
+
 exports.deleteProfessorCompletely = onCall({
   region: 'us-central1',
   cors: [
@@ -146,6 +152,78 @@ exports.deleteProfessorCompletely = onCall({
     });
     throw new HttpsError('internal', 'Falha ao excluir professor completo.');
   }
+});
+
+exports.deleteAlunoProfileSecure = onCall({
+  region: 'us-central1',
+  cors: [
+    /localhost:\d+$/,
+    /127\.0\.0\.1:\d+$/,
+    'http://localhost:19006',
+    'http://127.0.0.1:19006'
+  ]
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  }
+
+  const callerUid = request.auth.uid;
+  const callerProfile = await getUserProfile(callerUid);
+  if (!callerProfile || callerProfile.role !== 'admin_academia') {
+    throw new HttpsError('permission-denied', 'Apenas admin de academia pode excluir aluno.');
+  }
+
+  const alunoId = String(request.data?.alunoId || '').trim();
+  if (!alunoId) {
+    throw new HttpsError('invalid-argument', 'Parâmetro alunoId é obrigatório.');
+  }
+
+  const db = admin.firestore();
+  const alunoRef = db.collection('users').doc(alunoId);
+  const alunoSnap = await alunoRef.get();
+
+  if (!alunoSnap.exists) {
+    throw new HttpsError('not-found', 'Aluno não encontrado.');
+  }
+
+  const alunoData = alunoSnap.data() || {};
+  if (alunoData.role !== 'aluno') {
+    throw new HttpsError('failed-precondition', 'O usuário informado não é aluno.');
+  }
+
+  if (!callerProfile.academia_id || alunoData.academia_id !== callerProfile.academia_id) {
+    throw new HttpsError('permission-denied', 'Sem permissão para excluir usuário de outra academia.');
+  }
+
+  const treinoAssociadoSnap = await db
+    .collection('treinos')
+    .where('aluno_id', '==', alunoId)
+    .limit(1)
+    .get();
+
+  if (!treinoAssociadoSnap.empty) {
+    throw new HttpsError('failed-precondition', 'Não é possível excluir aluno com treino associado.');
+  }
+
+  const email = String(alunoData.email || '').trim().toLowerCase();
+  if (email) {
+    await db.collection('emails_bloqueados').doc(email).set({
+      email,
+      blocked_at: admin.firestore.FieldValue.serverTimestamp(),
+      blocked_by: callerUid,
+      reason: 'aluno_deleted_firestore_only'
+    }, { merge: true });
+  }
+
+  await alunoRef.delete();
+
+  logger.info('Aluno excluído com segurança', {
+    callerUid,
+    alunoId,
+    academiaId: callerProfile.academia_id
+  });
+
+  return { success: true };
 });
 
 exports.enviarResumoSemanalAtletas = onSchedule(

@@ -1,9 +1,10 @@
-import { auth, db } from '../firebase/config';
+import { auth, db, functions } from '../firebase/config';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
 import { getAuth, signOut } from 'firebase/auth';
 import { setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import Constants from 'expo-constants';
 import { isValidEmail, normalizeEmail } from '../utils/validation';
 
@@ -280,38 +281,11 @@ export async function deleteAlunoProfile(alunoId) {
   const academyAdmin = await isCurrentUserAcademyAdmin();
   if (!academyAdmin) throw new Error('Apenas admin de academia pode excluir aluno');
 
-  const ref = doc(db, 'users', alunoId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error('Aluno não encontrado');
+  const alunoIdNormalizado = String(alunoId || '').trim();
+  if (!alunoIdNormalizado) throw new Error('Aluno inválido');
 
-  const data = snap.data();
-  if (data.role !== ROLE_ALUNO) {
-    throw new Error('O usuário informado não é aluno');
-  }
-
-  const minhaAcademia = await getCurrentUserAcademiaId();
-  if (minhaAcademia && data.academia_id !== minhaAcademia) {
-    throw new Error('Sem permissão para excluir usuário de outra academia');
-  }
-
-  const treinosCol = collection(db, 'treinos');
-  const treinoAssociadoQ = query(treinosCol, where('aluno_id', '==', alunoId), limit(1));
-  const treinoAssociadoSnap = await getDocs(treinoAssociadoQ);
-  if (!treinoAssociadoSnap.empty) {
-    throw new Error('Não é possível excluir aluno com treino associado');
-  }
-
-  const emailNormalizado = normalizeEmail(data.email || '');
-  if (emailNormalizado) {
-    await setDoc(doc(db, 'emails_bloqueados', emailNormalizado), {
-      email: emailNormalizado,
-      blocked_at: serverTimestamp(),
-      blocked_by: auth.currentUser?.uid || null,
-      reason: 'aluno_deleted_firestore_only'
-    }, { merge: true });
-  }
-
-  await deleteDoc(ref);
+  const callable = httpsCallable(functions, 'deleteAlunoProfileSecure');
+  await callable({ alunoId: alunoIdNormalizado });
 }
 
 export async function updateManagedUserProfile({ userId, nome, email }) {

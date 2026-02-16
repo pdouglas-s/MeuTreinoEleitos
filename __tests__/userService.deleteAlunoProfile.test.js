@@ -1,20 +1,18 @@
 jest.mock('../src/firebase/config', () => ({
   auth: { currentUser: { uid: 'admin-1' } },
-  db: {}
+  db: {},
+  functions: {}
 }));
 
 jest.mock('firebase/firestore', () => ({
   doc: jest.fn(() => ({})),
   getDoc: jest.fn(),
-  collection: jest.fn(() => ({})),
-  query: jest.fn(() => ({})),
-  where: jest.fn(() => ({})),
-  limit: jest.fn(() => ({})),
-  getDocs: jest.fn(),
-  setDoc: jest.fn(() => Promise.resolve()),
-  deleteDoc: jest.fn(() => Promise.resolve()),
   updateDoc: jest.fn(() => Promise.resolve()),
   serverTimestamp: jest.fn(() => 'mock-timestamp')
+}));
+
+jest.mock('firebase/functions', () => ({
+  httpsCallable: jest.fn()
 }));
 
 jest.mock('firebase/auth', () => ({
@@ -40,12 +38,8 @@ jest.mock('expo-constants', () => ({
   }
 }));
 
-const {
-  getDoc,
-  getDocs,
-  setDoc,
-  deleteDoc
-} = require('firebase/firestore');
+const { getDoc } = require('firebase/firestore');
+const { httpsCallable } = require('firebase/functions');
 
 const { deleteAlunoProfile } = require('../src/services/userService');
 
@@ -55,53 +49,34 @@ describe('userService.deleteAlunoProfile', () => {
   });
 
   test('bloqueia exclusão quando aluno possui treino associado', async () => {
+    const callableMock = jest.fn().mockRejectedValue(
+      new Error('Não é possível excluir aluno com treino associado')
+    );
+    httpsCallable.mockReturnValue(callableMock);
+
     getDoc
       .mockResolvedValueOnce({
         exists: () => true,
         data: () => ({ role: 'admin_academia', academia_id: 'acad-1' })
-      })
-      .mockResolvedValueOnce({
-        exists: () => true,
-        data: () => ({ role: 'aluno', academia_id: 'acad-1', email: 'aluno@teste.com' })
-      })
-      .mockResolvedValueOnce({
-        exists: () => true,
-        data: () => ({ role: 'admin_academia', academia_id: 'acad-1' })
       });
-
-    getDocs.mockResolvedValue({
-      empty: false,
-      docs: [{ id: 'treino-1' }]
-    });
 
     await expect(deleteAlunoProfile('aluno-1')).rejects.toThrow(
       'Não é possível excluir aluno com treino associado'
     );
-
-    expect(deleteDoc).not.toHaveBeenCalled();
-    expect(setDoc).not.toHaveBeenCalled();
+    expect(callableMock).toHaveBeenCalledWith({ alunoId: 'aluno-1' });
   });
 
   test('permite exclusão quando não há treino associado', async () => {
+    const callableMock = jest.fn().mockResolvedValue({ data: { success: true } });
+    httpsCallable.mockReturnValue(callableMock);
+
     getDoc
-      .mockResolvedValueOnce({
-        exists: () => true,
-        data: () => ({ role: 'admin_academia', academia_id: 'acad-1' })
-      })
-      .mockResolvedValueOnce({
-        exists: () => true,
-        data: () => ({ role: 'aluno', academia_id: 'acad-1', email: 'aluno@teste.com' })
-      })
       .mockResolvedValueOnce({
         exists: () => true,
         data: () => ({ role: 'admin_academia', academia_id: 'acad-1' })
       });
 
-    getDocs.mockResolvedValue({ empty: true, docs: [] });
-
     await expect(deleteAlunoProfile('aluno-1')).resolves.toBeUndefined();
-
-    expect(setDoc).toHaveBeenCalledTimes(1);
-    expect(deleteDoc).toHaveBeenCalledTimes(1);
+    expect(callableMock).toHaveBeenCalledWith({ alunoId: 'aluno-1' });
   });
 });
