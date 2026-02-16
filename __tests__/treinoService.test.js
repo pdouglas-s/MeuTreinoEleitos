@@ -86,16 +86,13 @@ describe('treinoService', () => {
     expect(deleteDoc).not.toHaveBeenCalled();
   });
 
-  test('deleteTreino bloqueado com aluno vinculado permite exclusão', async () => {
+  test('deleteTreino com aluno vinculado retorna erro de negócio', async () => {
     doc.mockReturnValue({ id: 't2' });
     getDoc.mockResolvedValue({ exists: () => true, data: () => ({ bloqueado_exclusao: true, aluno_id: 'aluno-1' }) });
-    deleteDoc.mockResolvedValue();
 
-    await expect(treinoService.deleteTreino('t2')).resolves.toEqual({
-      id: 't2',
-      bloqueado_exclusao: true,
-      aluno_id: 'aluno-1'
-    });
-    expect(deleteDoc).toHaveBeenCalled();
+    await expect(treinoService.deleteTreino('t2')).rejects.toThrow(
+      'Não é permitido excluir treino associado a aluno'
+    );
+    expect(deleteDoc).not.toHaveBeenCalled();
   });
 });

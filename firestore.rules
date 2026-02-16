@@ -221,26 +221,16 @@ service cloud.firestore {
 
       allow delete: if request.auth != null
         && (
+          !(resource.data.aluno_id is string && resource.data.aluno_id != '')
+        )
+        && (
           resource.data.bloqueado_exclusao != true
-          || (
-            resource.data.aluno_id is string
-            && resource.data.aluno_id != ''
-          )
         )
         && (
           (isSystemAdmin() && resource.data.is_padrao == true)
           || (
             isAcademyAdmin()
             && isSameAcademia(resource.data.academia_id)
-            && resource.data.aluno_id is string
-            && resource.data.aluno_id != ''
-            && resource.data.is_padrao != true
-          )
-          || (
-            isProfessor()
-            && isSameAcademia(resource.data.academia_id)
-            && resource.data.aluno_id is string
-            && resource.data.aluno_id != ''
             && resource.data.is_padrao != true
           )
           || (

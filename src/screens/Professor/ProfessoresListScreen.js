@@ -18,8 +18,7 @@ export default function ProfessoresListScreen() {
     setLoading(true);
     try {
       const list = await listAllProfessores();
-      const filtrados = list.filter((item) => item?.nome !== 'ADMIN');
-      const sortedList = [...filtrados].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+      const sortedList = [...list].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
       setProfessores(sortedList);
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar os professores.'));

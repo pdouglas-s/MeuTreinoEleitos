@@ -168,6 +168,10 @@ export async function deleteTreino(treino_id) {
 
   const data = snapshot.data();
   const temVinculoAluno = typeof data?.aluno_id === 'string' && data.aluno_id.trim().length > 0;
+  if (temVinculoAluno) {
+    throw new Error('Não é permitido excluir treino associado a aluno');
+  }
+
   if (data?.bloqueado_exclusao === true && !temVinculoAluno) {
     throw new Error('Este treino foi convertido de um padrão e não pode ser excluído');
   }

@@ -253,7 +253,7 @@ export default function ProfessorHome({ navigation }) {
   async function loadProfessores() {
     try {
       const list = await listAllProfessores();
-      setProfessores(list.filter(item => item.nome !== 'ADMIN'));
+      setProfessores(list);
     } catch (err) {
       console.warn('Erro ao carregar professores', err.message);
     }
@@ -640,24 +640,6 @@ export default function ProfessorHome({ navigation }) {
           <Text style={styles.helperText}>Exemplo: nome@dominio.com</Text>
           {emailProfessorInvalido && <Text style={styles.errorText}>E-mail inválido</Text>}
           <Button title="Criar Professor" onPress={handleCreateProfessor} disabled={createProfessorDisabled} />
-
-          <Text style={[styles.section, { marginTop: 12 }]}>Professores</Text>
-          <FlatList
-            data={professores}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.treinoRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome}</Text>
-                  <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 2 }}>{item.email}</Text>
-                </View>
-                <TouchableOpacity onPress={() => confirmDeleteProfessor(item)} style={styles.deleteBtn}>
-                  <Text style={styles.deleteText}>🗑️ Excluir</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          />
-          {professores.length === 0 && <Text style={styles.emptyHint}>Nenhum professor adicional cadastrado.</Text>}
 
           <Text style={[styles.section, { marginTop: 12 }]}>Desbloquear E-mail</Text>
           <TextInput
