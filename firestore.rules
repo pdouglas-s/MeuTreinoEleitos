@@ -63,14 +63,8 @@ service cloud.firestore {
         isSystemAdmin()
         || treinoData.is_padrao == true
         || treinoData.aluno_id == request.auth.uid
-        || (hasProfile() && isSameAcademia(treinoData.academia_id))
-        || (
-          isAcademyStaff()
-          && treinoData.aluno_id is string
-          && treinoData.aluno_id != ''
-          && exists(/databases/$(database)/documents/users/$(treinoData.aluno_id))
-          && isSameAcademia(get(/databases/$(database)/documents/users/$(treinoData.aluno_id)).data.academia_id)
-        )
+        // Permite staff da academia ver todos os treinos da academia
+        || (isAcademyStaff() && isSameAcademia(treinoData.academia_id))
       );
     }
 
