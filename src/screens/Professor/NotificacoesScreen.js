@@ -136,6 +136,22 @@ export default function NotificacoesScreen({ navigation }) {
     }
   }
 
+  function getMensagemExibicao(item) {
+    if (!isAcademyAdmin) return item?.mensagem || '';
+
+    if (item?.tipo === 'treino_associado') {
+      const professorNome = String(item?.dados?.professor_nome || 'Professor').trim();
+      const treinoNome = String(item?.dados?.treino_nome || 'Treino').trim();
+      const alunoNome = String(item?.dados?.aluno_nome || item?.aluno_id || '').trim();
+
+      if (alunoNome) {
+        return `${professorNome} associou o treino "${treinoNome}" para ${alunoNome}`;
+      }
+    }
+
+    return item?.mensagem || '';
+  }
+
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -198,7 +214,7 @@ export default function NotificacoesScreen({ navigation }) {
                 </View>
                 <View style={styles.notifContent}>
                   <Text style={[styles.notifMessage, !item.lida && styles.notifMessageUnread]}>
-                    {item.mensagem}
+                    {getMensagemExibicao(item)}
                   </Text>
                   <Text style={styles.notifTime}>{formatarData(item.created_at)}</Text>
                 </View>

@@ -250,6 +250,7 @@ export default function TreinoDetail({ route, navigation }) {
         treino_id: novoTreinoId,
         treino_nome: editNome,
         professor_nome: profile?.nome || 'Professor',
+        aluno_nome: alunos.find((item) => item.id === alunoSelecionado)?.nome || null,
         academia_id: treino?.academia_id || profile?.academia_id || null
       });
     } catch (notifyErr) {
@@ -294,6 +295,7 @@ export default function TreinoDetail({ route, navigation }) {
             treino_id: treino.id,
             treino_nome: editNome,
             professor_nome: profile?.nome || 'Professor',
+            aluno_nome: alunos.find((item) => item.id === alunoSelecionado)?.nome || null,
             academia_id: treino?.academia_id || profile?.academia_id || null
           });
         } catch (notifyErr) {

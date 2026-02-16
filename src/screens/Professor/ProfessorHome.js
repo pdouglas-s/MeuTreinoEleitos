@@ -410,6 +410,7 @@ export default function ProfessorHome({ navigation }) {
             treino_id: id,
             treino_nome: nomeTreino,
             professor_nome: profile?.nome || 'Professor',
+            aluno_nome: alunosMap[alunoId] || null,
             academia_id: profile?.academia_id || null
           });
         } catch (notifyErr) {
@@ -557,6 +558,23 @@ export default function ProfessorHome({ navigation }) {
           <Text style={styles.statLabel}>Notificações</Text>
         </TouchableOpacity>
       </View>}
+
+      {!isSystemAdmin && (
+        <TouchableOpacity
+          style={styles.reportCard}
+          onPress={() => navigation.navigate('RelatorioEsforco')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.reportCardIconWrap}>
+            <Ionicons name="bar-chart" size={20} color={theme.colors.primary} />
+          </View>
+          <View style={styles.reportCardContent}>
+            <Text style={styles.reportCardTitle}>Gerenciar notificações por treino</Text>
+            <Text style={styles.reportCardHint}>Relatório estatístico de esforço por grupo muscular</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
+        </TouchableOpacity>
+      )}
 
       {!isSystemAdmin && isAcademyAdmin && <TouchableOpacity 
         style={styles.bancoExerciciosBtn} 
@@ -758,6 +776,39 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: theme.fontSizes.sm,
     color: theme.colors.muted,
+    marginTop: 2
+  },
+  reportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: theme.spacing(1.5)
+  },
+  reportCardIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10
+  },
+  reportCardContent: {
+    flex: 1
+  },
+  reportCardTitle: {
+    color: theme.colors.text,
+    fontWeight: '700',
+    fontSize: 14
+  },
+  reportCardHint: {
+    color: theme.colors.muted,
+    fontSize: 12,
     marginTop: 2
   },
   headerActions: {

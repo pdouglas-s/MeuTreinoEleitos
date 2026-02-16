@@ -87,6 +87,7 @@ function AppNavigator() {
   const AlunosListScreen = lazy(() => import('./src/screens/Professor/AlunosListScreen'));
   const ProfessoresListScreen = lazy(() => import('./src/screens/Professor/ProfessoresListScreen'));
   const TreinosListScreen = lazy(() => import('./src/screens/Professor/TreinosListScreen'));
+  const RelatorioEsforcoScreen = lazy(() => import('./src/screens/Professor/RelatorioEsforcoScreen'));
 
   if (loading) {
     return <Loading />;
@@ -125,6 +126,7 @@ function AppNavigator() {
           <Stack.Screen name="AlunosList" component={AlunosListScreen} options={{ title: 'Alunos Cadastrados' }} />
           <Stack.Screen name="ProfessoresList" component={ProfessoresListScreen} options={{ title: 'Professores Cadastrados' }} />
           <Stack.Screen name="TreinosList" component={TreinosListScreen} options={{ title: 'Treinos' }} />
+          <Stack.Screen name="RelatorioEsforco" component={RelatorioEsforcoScreen} options={{ title: 'Relatório de Esforço' }} />
         </Stack.Navigator>
       </NavigationContainer>
     </Suspense>

@@ -1,6 +1,7 @@
 import { db } from '../firebase/config';
 import { collection, addDoc, query, where, getDocs, orderBy, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { listarSessoesFinalizadasNoPeriodo } from './historicoService';
+import { listAllExercicios } from './exerciciosService';
 
 function toMillis(value) {
   if (!value) return 0;
@@ -11,6 +12,10 @@ function toMillis(value) {
 
 function sortByCreatedAtDesc(items) {
   return [...items].sort((a, b) => toMillis(b.created_at) - toMillis(a.created_at));
+}
+
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 function toDateValue(value) {
@@ -86,6 +91,133 @@ function formatarListaAlteracoes(prefixo, itens = []) {
   const resto = itens.length - exibidos.length;
   const sufixo = resto > 0 ? ` e mais ${resto}` : '';
   return `\n${prefixo}: ${exibidos.join(', ')}${sufixo}`;
+}
+
+function distribuirNivel(distribuicao, nivel) {
+  const chave = String(nivel);
+  distribuicao[chave] = (distribuicao[chave] || 0) + 1;
+}
+
+/**
+ * Relatório estatístico por categoria muscular a partir de notificações de treino finalizado
+ */
+export async function gerarRelatorioEsforcoPorCategoria({ professorId = null, academiaId = null, dias = 30 } = {}) {
+  const periodoDias = Number.isFinite(Number(dias)) ? Math.max(1, Number(dias)) : 30;
+  const limiteData = new Date();
+  limiteData.setDate(limiteData.getDate() - periodoDias);
+
+  const notificacoes = academiaId
+    ? await listarNotificacoesAcademia(academiaId)
+    : await listarNotificacoesProfessor(professorId);
+
+  const finalizacoes = notificacoes
+    .filter((item) => item?.tipo === 'treino_finalizado')
+    .filter((item) => {
+      const createdAt = toDateValue(item?.created_at);
+      return createdAt && createdAt >= limiteData;
+    })
+    .filter((item) => {
+      const nivel = Number(item?.dados?.nivel_esforco);
+      const treinoId = String(item?.dados?.treino_id || '').trim();
+      return Number.isFinite(nivel) && nivel >= 1 && nivel <= 5 && !!treinoId;
+    });
+
+  if (!finalizacoes.length) {
+    return {
+      periodoDias,
+      totalNotificacoesConsideradas: 0,
+      mediaGeral: null,
+      distribuicaoGeral: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      categorias: []
+    };
+  }
+
+  const exercicios = await listAllExercicios();
+  const categoriaPorExercicioId = {};
+  const categoriaPorNomeExercicio = {};
+
+  exercicios.forEach((exercicio) => {
+    const categoria = String(exercicio?.categoria || '').trim() || 'Sem categoria';
+    if (exercicio?.id) categoriaPorExercicioId[exercicio.id] = categoria;
+
+    const nomeNormalizado = normalizeText(exercicio?.nome);
+    if (nomeNormalizado && !categoriaPorNomeExercicio[nomeNormalizado]) {
+      categoriaPorNomeExercicio[nomeNormalizado] = categoria;
+    }
+  });
+
+  const treinoIds = Array.from(new Set(finalizacoes.map((item) => String(item?.dados?.treino_id || '').trim()).filter(Boolean)));
+  const treinoCategoriasMap = {};
+
+  const itensPorTreino = await Promise.all(
+    treinoIds.map(async (treinoId) => {
+      const snap = await getDocs(query(collection(db, 'treino_itens'), where('treino_id', '==', treinoId)));
+      return { treinoId, itens: snap.docs.map((docSnap) => docSnap.data() || {}) };
+    })
+  );
+
+  itensPorTreino.forEach(({ treinoId, itens }) => {
+    const categorias = new Set();
+
+    itens.forEach((item) => {
+      const categoriaPorId = item?.exercicio_id ? categoriaPorExercicioId[item.exercicio_id] : null;
+      const categoriaPorNome = categoriaPorNomeExercicio[normalizeText(item?.exercicio_nome)];
+      const categoria = categoriaPorId || categoriaPorNome || null;
+      if (categoria) categorias.add(categoria);
+    });
+
+    treinoCategoriasMap[treinoId] = categorias.size ? Array.from(categorias) : ['Sem categoria'];
+  });
+
+  const categoriasAgg = {};
+  const distribuicaoGeral = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  let somaGeral = 0;
+  let totalGeral = 0;
+
+  finalizacoes.forEach((item) => {
+    const treinoId = String(item?.dados?.treino_id || '').trim();
+    const nivel = Number(item?.dados?.nivel_esforco);
+    const categorias = treinoCategoriasMap[treinoId] || ['Sem categoria'];
+
+    somaGeral += nivel;
+    totalGeral += 1;
+    distribuirNivel(distribuicaoGeral, nivel);
+
+    categorias.forEach((categoria) => {
+      if (!categoriasAgg[categoria]) {
+        categoriasAgg[categoria] = {
+          categoria,
+          total_treinos: 0,
+          soma_esforco: 0,
+          distribuicao: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+        };
+      }
+
+      categoriasAgg[categoria].total_treinos += 1;
+      categoriasAgg[categoria].soma_esforco += nivel;
+      distribuirNivel(categoriasAgg[categoria].distribuicao, nivel);
+    });
+  });
+
+  const categorias = Object.values(categoriasAgg)
+    .map((item) => ({
+      categoria: item.categoria,
+      total_treinos: item.total_treinos,
+      media_esforco: Math.round((item.soma_esforco / item.total_treinos) * 10) / 10,
+      distribuicao: item.distribuicao
+    }))
+    .sort((a, b) => {
+      if (b.total_treinos !== a.total_treinos) return b.total_treinos - a.total_treinos;
+      return String(a.categoria || '').localeCompare(String(b.categoria || ''));
+    });
+
+  return {
+    periodoDias,
+    totalNotificacoesConsideradas: finalizacoes.length,
+    mediaGeral: totalGeral ? Math.round((somaGeral / totalGeral) * 10) / 10 : null,
+    distribuicaoGeral,
+    categorias
+  };
 }
 
 /**

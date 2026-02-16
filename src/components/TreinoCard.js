@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, TextInput, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../theme';
 import { criarSessaoTreino, marcarExercicioConcluido, finalizarSessao, buscarSessaoAtiva } from '../services/historicoService';
 import { enviarNotificacao } from '../services/notificacoesService';
+import { sugerirPlaylistsTreino } from '../services/musicSuggestionService';
 import { Alert } from '../utils/alert';
 import { getAuthErrorMessage } from '../utils/authErrors';
 
@@ -20,6 +21,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   const [detalhesAbertos, setDetalhesAbertos] = useState(true);
   const [nivelEsforco, setNivelEsforco] = useState(0);
   const [feedbackTreino, setFeedbackTreino] = useState('');
+  const [playlistSugestao, setPlaylistSugestao] = useState(null);
   const opcoesEsforco = [
     { nivel: 1, emoji: '😄', label: 'Muito leve' },
     { nivel: 2, emoji: '🙂', label: 'Leve' },
@@ -52,7 +54,31 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         return { ...item, done: !!exercicioAnterior?.done };
       });
     });
-  }, [treino.itens, sessaoId]);
+
+  }, [treino.itens, sessaoId, nivelEsforco]);
+
+  useEffect(() => {
+    if (!sessaoId || !playlistSugestao) return;
+    setPlaylistSugestao(sugerirPlaylistsTreino(treino?.itens || [], nivelEsforco));
+  }, [nivelEsforco, sessaoId, treino?.itens]);
+
+  async function abrirPlaylist(url, plataforma) {
+    try {
+      const link = String(url || '').trim();
+      if (!link) return;
+
+      const canOpen = await Linking.canOpenURL(link);
+      if (!canOpen) {
+        Alert.alert('Atenção', `Não foi possível abrir ${plataforma} neste dispositivo.`);
+        return;
+      }
+
+      await Linking.openURL(link);
+    } catch (err) {
+      console.warn(`Erro ao abrir ${plataforma}:`, err?.message || err);
+      Alert.alert('Erro', `Falha ao abrir ${plataforma}.`);
+    }
+  }
 
   async function carregarSessaoAtiva() {
     try {
@@ -81,6 +107,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       setIniciandoSessao(true);
       const novoSessaoId = await criarSessaoTreino(treino.id, alunoId, professorId);
       setSessaoId(novoSessaoId);
+      setPlaylistSugestao(sugerirPlaylistsTreino(treino?.itens || [], nivelEsforco));
       
       if (professorId) {
         try {
@@ -99,7 +126,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         setDetalhesAbertos(true);
       }
       
-      Alert.alert('Sucesso', 'Treino iniciado! Boa sorte! 💪');
+      Alert.alert('Sucesso', 'Treino iniciado! Boa sorte! 💪\nSugestões de playlist disponíveis abaixo.');
     } catch (err) {
       console.error('Erro ao iniciar sessão:', err);
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível iniciar o treino.'));
@@ -243,6 +270,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       
       // Resetar sessão para permitir novo treino
       setSessaoId(null);
+      setPlaylistSugestao(null);
       setExercicios((treino.itens || []).map((e) => ({ ...e, done: false })));
       cancelarFinalizacao();
     } catch (err) {
@@ -255,7 +283,15 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
   function handleAbrirDetalhes() {
     if (modoCompacto) {
-      setDetalhesAbertos((prev) => !prev);
+      setDetalhesAbertos((prev) => {
+        const proximoAberto = !prev;
+        if (!proximoAberto) {
+          setPlaylistSugestao(null);
+        } else if (sessaoId && !playlistSugestao) {
+          setPlaylistSugestao(sugerirPlaylistsTreino(treino?.itens || [], nivelEsforco));
+        }
+        return proximoAberto;
+      });
       return;
     }
     if (onOpen) onOpen(treino);
@@ -299,6 +335,31 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
             </>
           )}
         </TouchableOpacity>
+      )}
+
+      {sessaoId && detalhesAbertos && playlistSugestao && (
+        <View style={styles.musicCard}>
+          <View style={styles.musicHeader}>
+            <Ionicons name="musical-notes" size={18} color={theme.colors.primary} />
+            <Text style={styles.musicTitle}>Playlist sugerida ({playlistSugestao.categoriaPrincipal})</Text>
+          </View>
+          <Text style={styles.musicPace}>Ritmo: {String(playlistSugestao.intensidade || 'moderado')}</Text>
+          <Text style={styles.musicHint}>{playlistSugestao.resumo}</Text>
+          <View style={styles.musicActions}>
+            <TouchableOpacity
+              style={[styles.musicBtn, styles.spotifyBtn]}
+              onPress={() => abrirPlaylist(playlistSugestao.spotifyUrl, 'Spotify')}
+            >
+              <Text style={styles.musicBtnText}>Spotify: {playlistSugestao.spotifyNome || 'Playlist'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.musicBtn, styles.deezerBtn]}
+              onPress={() => abrirPlaylist(playlistSugestao.deezerUrl, 'Deezer')}
+            >
+              <Text style={styles.musicBtnText}>Deezer: {playlistSugestao.deezerNome || 'Playlist'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
 
       {detalhesAbertos && (
@@ -420,6 +481,57 @@ const styles = StyleSheet.create({
   progress: { fontSize: theme.fontSizes.sm, color: theme.colors.muted },
   startBtn: { marginBottom: 12, backgroundColor: theme.colors.primary, padding: 10, borderRadius: theme.radii.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   startText: { color: theme.colors.card, fontWeight: '600', fontSize: 15 },
+  musicCard: {
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radii.md,
+    padding: 10
+  },
+  musicHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  musicTitle: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  musicHint: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    marginTop: 3,
+    marginBottom: 8
+  },
+  musicPace: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4
+  },
+  musicActions: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  musicBtn: {
+    flex: 1,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    alignItems: 'center'
+  },
+  spotifyBtn: {
+    backgroundColor: theme.colors.primary
+  },
+  deezerBtn: {
+    backgroundColor: theme.colors.text
+  },
+  musicBtnText: {
+    color: theme.colors.card,
+    fontWeight: '700',
+    fontSize: 12
+  },
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.background, marginTop: 8 },
   checkbox: { width: 34, height: 34, borderRadius: theme.radii.sm, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   checkboxDone: { backgroundColor: theme.colors.background },
