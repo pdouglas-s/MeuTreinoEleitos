@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableOpacity } from 'react-native';
 import theme from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { auth } from '../../firebase/config';
@@ -8,7 +8,7 @@ import { listAllAlunos } from '../../services/userService';
 import { Alert } from '../../utils/alert';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 
-export default function TreinosListScreen() {
+export default function TreinosListScreen({ navigation }) {
   const { profile } = useAuth();
   const [treinos, setTreinos] = useState([]);
   const [busca, setBusca] = useState('');
@@ -48,13 +48,34 @@ export default function TreinosListScreen() {
 
   const treinosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return treinos;
-    return treinos.filter((treino) => {
+    const base = !termo
+      ? treinos
+      : treinos.filter((treino) => {
       const nomeTreino = String(treino?.nome_treino || '').toLowerCase();
       const nomeAluno = String(alunosMap[treino?.aluno_id] || '').toLowerCase();
       return nomeTreino.includes(termo) || nomeAluno.includes(termo);
+      });
+
+    const normalize = (value) => String(value || '').trim().toLowerCase();
+    return [...base].sort((a, b) => {
+      const alunoA = normalize(alunosMap[a?.aluno_id]);
+      const alunoB = normalize(alunosMap[b?.aluno_id]);
+      const temAlunoA = !!alunoA;
+      const temAlunoB = !!alunoB;
+
+      if (temAlunoA && temAlunoB && alunoA !== alunoB) {
+        return alunoA.localeCompare(alunoB);
+      }
+      if (temAlunoA && !temAlunoB) return -1;
+      if (!temAlunoA && temAlunoB) return 1;
+
+      return normalize(a?.nome_treino).localeCompare(normalize(b?.nome_treino));
     });
   }, [treinos, alunosMap, busca]);
+
+  function handleOpenTreino(treino) {
+    navigation.navigate('TreinoDetail', { treino });
+  }
 
   if (loading) {
     return (
@@ -80,14 +101,14 @@ export default function TreinosListScreen() {
         data={treinosFiltrados}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.itemRow}>
+          <TouchableOpacity style={styles.itemRow} onPress={() => handleOpenTreino(item)} activeOpacity={0.8}>
             <Text style={styles.itemNome}>{item.nome_treino}</Text>
             <Text style={styles.itemSub}>
               {item.aluno_id && alunosMap[item.aluno_id]
                 ? `👤 ${alunosMap[item.aluno_id]}`
                 : '📋 Treino modelo (sem aluno)'}
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
         ListEmptyComponent={<Text style={styles.emptyHint}>Nenhum treino encontrado.</Text>}
       />

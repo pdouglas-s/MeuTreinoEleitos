@@ -121,10 +121,14 @@ export default function NotificacoesScreen({ navigation }) {
         return { name: 'trophy', color: '#f59e0b' };
       case 'treino_associado':
         return { name: 'clipboard', color: '#0ea5a4' };
+      case 'treino_criado':
+        return { name: 'add-circle', color: '#14b8a6' };
       case 'treino_atualizado':
         return { name: 'create', color: '#2563eb' };
       case 'treino_excluido':
         return { name: 'trash', color: '#ef4444' };
+      case 'treino_excluido_academia':
+        return { name: 'trash-bin', color: '#dc2626' };
       case 'resumo_semanal':
         return { name: 'calendar', color: '#8b5cf6' };
       default:

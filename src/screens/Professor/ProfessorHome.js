@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
@@ -64,6 +64,27 @@ export default function ProfessorHome({ navigation }) {
   const treinosComAlunoCount = alunosLoaded
     ? treinos.filter((item) => hasAlunoVinculado(item)).length
     : treinos.filter((item) => !!item.aluno_id).length;
+  const treinosOrdenadosProfessor = useMemo(() => {
+    if (!canManageTreinos) return treinos;
+
+    const normalize = (value) => String(value || '').trim().toLowerCase();
+
+    return [...treinos].sort((a, b) => {
+      const alunoA = normalize(alunosMap[a?.aluno_id]);
+      const alunoB = normalize(alunosMap[b?.aluno_id]);
+      const temAlunoA = !!alunoA;
+      const temAlunoB = !!alunoB;
+
+      if (temAlunoA && temAlunoB && alunoA !== alunoB) {
+        return alunoA.localeCompare(alunoB);
+      }
+
+      if (temAlunoA && !temAlunoB) return -1;
+      if (!temAlunoA && temAlunoB) return 1;
+
+      return normalize(a?.nome_treino).localeCompare(normalize(b?.nome_treino));
+    });
+  }, [canManageTreinos, treinos, alunosMap]);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -83,14 +104,6 @@ export default function ProfessorHome({ navigation }) {
         if (canManageAcademyUsers) {
           loadProfessores();
         }
-      }
-      
-      // Atualizar contador a cada 30 segundos
-      if (!isAcademyAdmin) {
-        const interval = setInterval(() => {
-          if (!isSystemAdmin) loadNotificacoes(uid);
-        }, 30000);
-        return () => clearInterval(interval);
       }
     }
   }, [isSystemAdmin, isAcademyAdmin, canManageAcademyUsers, canManageTreinos]);
@@ -122,6 +135,22 @@ export default function ProfessorHome({ navigation }) {
       unsubNotifs();
     };
   }, [isAcademyAdmin, profile?.academia_id]);
+
+  useEffect(() => {
+    const uid = auth.currentUser?.uid || profile?.id || profile?.uid || null;
+    if (!uid || isSystemAdmin || isAcademyAdmin || !isProfessor) return undefined;
+
+    const notifsQuery = query(collection(db, 'notificacoes'), where('professor_id', '==', uid));
+
+    const unsubscribe = onSnapshot(notifsQuery, (snapshot) => {
+      const naoLidas = snapshot.docs.filter((docSnap) => docSnap.data()?.lida === false).length;
+      setNotifCount(naoLidas);
+    }, (err) => {
+      console.warn('Erro ao escutar notificações do professor', err?.message || err);
+    });
+
+    return () => unsubscribe();
+  }, [isSystemAdmin, isAcademyAdmin, isProfessor, profile?.id, profile?.uid]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -388,6 +417,18 @@ export default function ProfessorHome({ navigation }) {
         }
       }
 
+      try {
+        await enviarNotificacao(professor_id, null, 'treino_criado', {
+          treino_id: id,
+          treino_nome: nomeTreino,
+          professor_nome: profile?.nome || 'Professor',
+          aluno_nome: alunoId ? (alunosMap[alunoId] || null) : null,
+          academia_id: profile?.academia_id || null
+        });
+      } catch (notifyErr) {
+        console.warn('Falha ao enviar notificação de treino criado para academia:', notifyErr?.message || notifyErr);
+      }
+
       setNomeTreino('');
       setAlunoSelecionadoTreino('');
       await loadTreinosProfessor(professor_id);
@@ -404,6 +445,7 @@ export default function ProfessorHome({ navigation }) {
   async function handleDeleteTreino(treino_id) {
     try {
       const treinoExcluido = await deleteTreino(treino_id);
+      const alunoNome = treinoExcluido?.aluno_id ? (alunosMap[treinoExcluido.aluno_id] || null) : null;
 
       if (treinoExcluido?.aluno_id) {
         try {
@@ -416,6 +458,18 @@ export default function ProfessorHome({ navigation }) {
         } catch (notifyErr) {
           console.warn('Falha ao enviar notificação de treino excluído:', notifyErr?.message || notifyErr);
         }
+      }
+
+      try {
+        await enviarNotificacao(auth.currentUser?.uid, null, 'treino_excluido_academia', {
+          treino_id: treinoExcluido.id,
+          treino_nome: treinoExcluido.nome_treino || 'Treino',
+          professor_nome: profile?.nome || 'Professor',
+          aluno_nome: alunoNome,
+          academia_id: treinoExcluido.academia_id || profile?.academia_id || null
+        });
+      } catch (notifyErr) {
+        console.warn('Falha ao enviar notificação de exclusão para academia:', notifyErr?.message || notifyErr);
       }
 
       setTreinos(treinos.filter(t => t.id !== treino_id));
@@ -635,7 +689,7 @@ export default function ProfessorHome({ navigation }) {
       {!isSystemAdmin && canManageTreinos && <View style={styles.cardBlock}>
         <Text style={styles.blockTitle}>Seus Treinos</Text>
         <FlatList
-          data={treinos}
+          data={treinosOrdenadosProfessor}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <View style={styles.treinoRow}>

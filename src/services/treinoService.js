@@ -54,16 +54,12 @@ export async function listTreinosByProfessor(professor_id) {
     throw new Error('Professor sem academia vinculada para listar treinos');
   }
 
-  const qOwn = query(
-    treinosCol,
-    where('professor_id', '==', professor_id),
-    where('academia_id', '==', academiaId)
-  );
+  const qAcademia = query(treinosCol, where('academia_id', '==', academiaId));
   const qPadrao = query(treinosCol, where('is_padrao', '==', true));
-  const [ownSnap, padraoSnap] = await Promise.all([getDocs(qOwn), getDocs(qPadrao)]);
+  const [academiaSnap, padraoSnap] = await Promise.all([getDocs(qAcademia), getDocs(qPadrao)]);
 
   const map = {};
-  ownSnap.docs.forEach((d) => {
+  academiaSnap.docs.forEach((d) => {
     map[d.id] = { id: d.id, ...d.data() };
   });
   padraoSnap.docs.forEach((d) => {

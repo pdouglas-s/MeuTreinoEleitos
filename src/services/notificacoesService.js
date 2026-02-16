@@ -95,8 +95,9 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const notifRef = collection(db, 'notificacoes');
   const tiposSomenteAluno = ['treino_associado', 'treino_atualizado', 'treino_excluido'];
   const tiposSomenteProfessor = ['treino_iniciado', 'exercicio_concluido', 'treino_finalizado'];
-  const professorDestinoId = (tiposSomenteAluno.includes(tipo) ? null : professorId) ?? null;
-  const alunoDestinoId = (tiposSomenteProfessor.includes(tipo) ? null : alunoId) ?? null;
+  const tiposSomenteAcademia = ['treino_criado', 'treino_excluido_academia'];
+  const professorDestinoId = (tiposSomenteAluno.includes(tipo) || tiposSomenteAcademia.includes(tipo) ? null : professorId) ?? null;
+  const alunoDestinoId = (tiposSomenteProfessor.includes(tipo) || tiposSomenteAcademia.includes(tipo) ? null : alunoId) ?? null;
 
   const intensidadeTexto = {
     1: '😄 Muito leve',
@@ -126,6 +127,14 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
     case 'treino_associado':
       mensagem = `${dados.professor_nome || 'Professor'} associou o treino "${dados.treino_nome}" para você`;
       break;
+    case 'treino_criado':
+      mensagem = `${dados.professor_nome || 'Professor'} criou o treino "${dados.treino_nome}"`;
+      if (dados.aluno_nome) {
+        mensagem += ` para ${dados.aluno_nome}`;
+      } else {
+        mensagem += ' (modelo)';
+      }
+      break;
     case 'treino_atualizado':
       mensagem = `${dados.professor_nome || 'Professor'} atualizou o treino "${dados.treino_nome}"`;
       {
@@ -137,6 +146,14 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
       break;
     case 'treino_excluido':
       mensagem = `${dados.professor_nome || 'Professor'} removeu o treino "${dados.treino_nome}" da sua lista`;
+      break;
+    case 'treino_excluido_academia':
+      mensagem = `${dados.professor_nome || 'Professor'} excluiu o treino "${dados.treino_nome}"`;
+      if (dados.aluno_nome) {
+        mensagem += ` de ${dados.aluno_nome}`;
+      } else {
+        mensagem += ' (modelo)';
+      }
       break;
     default:
       mensagem = 'Nova atividade do aluno';

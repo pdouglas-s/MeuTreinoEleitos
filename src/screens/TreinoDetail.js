@@ -15,6 +15,23 @@ export default function TreinoDetail({ route, navigation }) {
   const { treino } = route.params;
   const { profile } = useAuth();
   const isProfessor = ['professor', 'admin_academia', 'admin_sistema'].includes(profile?.role);
+  const currentUserId = auth.currentUser?.uid || profile?.id || profile?.uid || null;
+  const isTreinoOwner = treino?.professor_id === currentUserId;
+  const isAcademiaTreinoAluno = String(treino?.academia_id || '').trim() === String(profile?.academia_id || '').trim()
+    && String(treino?.aluno_id || '').trim().length > 0
+    && treino?.is_padrao !== true;
+  const isAdminAcademiaTreinoAluno = profile?.role === 'admin_academia'
+    && String(treino?.academia_id || '').trim() === String(profile?.academia_id || '').trim()
+    && String(treino?.aluno_id || '').trim().length > 0
+    && treino?.is_padrao !== true;
+  const isProfessorAcademiaTreinoAluno = profile?.role === 'professor'
+    && isAcademiaTreinoAluno;
+  const canEditTreino = (profile?.role === 'professor' && isTreinoOwner)
+    || isProfessorAcademiaTreinoAluno
+    || isAdminAcademiaTreinoAluno
+    || (profile?.role === 'admin_sistema' && treino?.is_padrao === true);
+  const canManageItens = (profile?.role === 'professor' && (isTreinoOwner || isProfessorAcademiaTreinoAluno))
+    || isAdminAcademiaTreinoAluno;
   const [itens, setItens] = useState([]);
   const [loading, setLoading] = useState(true);
   const originalTreinoRef = useRef({
@@ -170,8 +187,20 @@ export default function TreinoDetail({ route, navigation }) {
     );
   }
 
+  function ensureCanManageItens() {
+    if (canManageItens) return true;
+    Alert.alert('Acesso negado', 'Você não pode editar exercícios deste treino');
+    return false;
+  }
+
+  function ensureCanEditTreino() {
+    if (canEditTreino) return true;
+    Alert.alert('Acesso negado', 'Você não tem permissão para salvar alterações neste treino');
+    return false;
+  }
+
   async function handleAddItem() {
-    if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode editar o treino');
+    if (!ensureCanManageItens()) return;
     if (!exNome) return Alert.alert('Erro', 'Nome do exercício é obrigatório');
 
     const nomeNovo = String(exNome || '').trim().toLowerCase();
@@ -190,7 +219,7 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   async function handleDeleteItem(itemId) {
-    if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode remover exercícios');
+    if (!ensureCanManageItens()) return;
     try {
       await deleteItem(itemId);
       await notificarTreinoAtualizado(treino.id, editNome || treino.nome_treino || 'Treino');
@@ -232,7 +261,7 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   async function handleUpdateTreino() {
-    if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode editar o treino');
+    if (!ensureCanEditTreino()) return;
     if (!editNome) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
       const alunoAnterior = treino.aluno_id || '';
@@ -291,9 +320,12 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   async function handleDeleteTreino() {
-    if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode excluir o treino');
+    if (!ensureCanEditTreino()) return;
     try {
       const treinoExcluido = await deleteTreino(treino.id);
+      const alunoNome = treinoExcluido?.aluno_id
+        ? (alunos.find((item) => item.id === treinoExcluido.aluno_id)?.nome || null)
+        : null;
 
       if (treinoExcluido?.aluno_id) {
         try {
@@ -306,6 +338,18 @@ export default function TreinoDetail({ route, navigation }) {
         } catch (notifyErr) {
           console.warn('Falha ao enviar notificação de treino excluído:', notifyErr?.message || notifyErr);
         }
+      }
+
+      try {
+        await enviarNotificacao(auth.currentUser?.uid, null, 'treino_excluido_academia', {
+          treino_id: treinoExcluido.id,
+          treino_nome: treinoExcluido.nome_treino || treino.nome_treino || 'Treino',
+          professor_nome: profile?.nome || 'Professor',
+          aluno_nome: alunoNome,
+          academia_id: treinoExcluido.academia_id || treino?.academia_id || profile?.academia_id || null
+        });
+      } catch (notifyErr) {
+        console.warn('Falha ao enviar notificação de exclusão para academia:', notifyErr?.message || notifyErr);
       }
 
       Alert.alert('Sucesso', 'Treino excluído');
