@@ -90,6 +90,58 @@ export default function TreinoDetail({ route, navigation }) {
     }
   }
 
+  function normalizeNomeExercicio(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function buildItensDiff(originalItens = [], itensAtuais = []) {
+    const mapOriginal = new Map();
+    originalItens.forEach((item) => {
+      const chave = normalizeNomeExercicio(item?.exercicio_nome);
+      if (!chave || mapOriginal.has(chave)) return;
+      mapOriginal.set(chave, String(item?.exercicio_nome || '').trim());
+    });
+
+    const mapAtual = new Map();
+    itensAtuais.forEach((item) => {
+      const chave = normalizeNomeExercicio(item?.exercicio_nome);
+      if (!chave || mapAtual.has(chave)) return;
+      mapAtual.set(chave, String(item?.exercicio_nome || '').trim());
+    });
+
+    const itensIncluidos = Array.from(mapAtual.entries())
+      .filter(([chave]) => !mapOriginal.has(chave))
+      .map(([, nome]) => nome);
+
+    const itensExcluidos = Array.from(mapOriginal.entries())
+      .filter(([chave]) => !mapAtual.has(chave))
+      .map(([, nome]) => nome);
+
+    return { itensIncluidos, itensExcluidos };
+  }
+
+  function getAlunoDestinoNotificacao() {
+    const candidato = String(alunoSelecionado || treino.aluno_id || '').trim();
+    return candidato || null;
+  }
+
+  async function notificarTreinoAtualizado(treinoId, treinoNome, alteracoes = {}) {
+    const alunoDestinoId = getAlunoDestinoNotificacao();
+    if (!alunoDestinoId) return;
+
+    try {
+      await enviarNotificacao(auth.currentUser?.uid, alunoDestinoId, 'treino_atualizado', {
+        treino_id: treinoId,
+        treino_nome: treinoNome,
+        professor_nome: profile?.nome || 'Professor',
+        itens_incluidos: alteracoes.itensIncluidos || [],
+        itens_excluidos: alteracoes.itensExcluidos || []
+      });
+    } catch (notifyErr) {
+      console.warn('Falha ao enviar notificação de treino atualizado:', notifyErr?.message || notifyErr);
+    }
+  }
+
   async function restoreOriginalTreinoSnapshot() {
     const originalTreino = originalTreinoRef.current;
     const originalItens = originalItensRef.current || [];
@@ -127,6 +179,7 @@ export default function TreinoDetail({ route, navigation }) {
 
     try {
       await addItemToTreino({ treino_id: treino.id, exercicio_nome: exNome, series: Number(series) || null, repeticoes: Number(reps) || null, carga: Number(carga) || null });
+      await notificarTreinoAtualizado(treino.id, editNome || treino.nome_treino || 'Treino');
       setExNome(''); setSeries(''); setReps(''); setCarga('');
       loadItens();
       Alert.alert('Sucesso', 'Item adicionado');
@@ -139,6 +192,7 @@ export default function TreinoDetail({ route, navigation }) {
     if (!isProfessor) return Alert.alert('Acesso negado', 'Somente professor pode remover exercícios');
     try {
       await deleteItem(itemId);
+      await notificarTreinoAtualizado(treino.id, editNome || treino.nome_treino || 'Treino');
       loadItens();
       Alert.alert('Sucesso', 'Item removido');
     } catch (err) {
@@ -180,7 +234,9 @@ export default function TreinoDetail({ route, navigation }) {
     if (!editNome) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
       const alunoAnterior = treino.aluno_id || '';
-      const alunoDestinoId = alunoSelecionado || treino.aluno_id || '';
+      const alunoDestinoId = getAlunoDestinoNotificacao();
+      const itensAtuais = await listItensByTreino(treino.id);
+      const alteracoesItens = buildItensDiff(originalItensRef.current || [], itensAtuais);
 
       if (alunoSelecionado && alunoSelecionado !== alunoAnterior) {
         const confirmado = await confirmCreateNovoVinculo();
@@ -212,16 +268,17 @@ export default function TreinoDetail({ route, navigation }) {
           console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
         }
       } else if (alunoDestinoId) {
-        try {
-          await enviarNotificacao(auth.currentUser?.uid, alunoDestinoId, 'treino_atualizado', {
-            treino_id: treino.id,
-            treino_nome: editNome,
-            professor_nome: profile?.nome || 'Professor'
-          });
-        } catch (notifyErr) {
-          console.warn('Falha ao enviar notificação de treino atualizado:', notifyErr?.message || notifyErr);
-        }
+        await notificarTreinoAtualizado(treino.id, editNome, alteracoesItens);
       }
+
+      originalItensRef.current = itensAtuais.map((item) => ({
+        exercicio_id: item.exercicio_id,
+        exercicio_nome: item.exercicio_nome,
+        series: item.series,
+        repeticoes: item.repeticoes,
+        carga: item.carga,
+        descanso: item.descanso
+      }));
 
       Alert.alert('Sucesso', mensagemSucesso);
       navigation.setOptions({ title: editNome });

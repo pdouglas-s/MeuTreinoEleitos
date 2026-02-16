@@ -135,7 +135,9 @@ describe('notificacoesService - envio direcionado', () => {
     await enviarNotificacao('prof-1', 'aluno-1', 'treino_atualizado', {
       treino_id: 'treino-1',
       treino_nome: 'Treino A',
-      professor_nome: 'Professor X'
+      professor_nome: 'Professor X',
+      itens_incluidos: ['Supino', 'Agachamento'],
+      itens_excluidos: ['Remada']
     });
 
     expect(addDoc).toHaveBeenCalledTimes(1);
@@ -143,6 +145,8 @@ describe('notificacoesService - envio direcionado', () => {
     expect(payload.tipo).toBe('treino_atualizado');
     expect(payload.aluno_id).toBe('aluno-1');
     expect(payload.professor_id).toBeNull();
+    expect(payload.mensagem).toContain('Incluídos: Supino, Agachamento');
+    expect(payload.mensagem).toContain('Excluídos: Remada');
   });
 
   test('treino_excluido não deve aparecer na caixa do professor', async () => {

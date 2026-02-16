@@ -69,6 +69,25 @@ function coletarFeedbacks(sessoes) {
   return Array.from(new Set(lista)).slice(0, 3);
 }
 
+function normalizarListaNomes(lista = []) {
+  return Array.from(
+    new Set(
+      lista
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function formatarListaAlteracoes(prefixo, itens = []) {
+  if (!itens.length) return '';
+  const limite = 5;
+  const exibidos = itens.slice(0, limite);
+  const resto = itens.length - exibidos.length;
+  const sufixo = resto > 0 ? ` e mais ${resto}` : '';
+  return `\n${prefixo}: ${exibidos.join(', ')}${sufixo}`;
+}
+
 /**
  * Envia notificação
  */
@@ -109,6 +128,12 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
       break;
     case 'treino_atualizado':
       mensagem = `${dados.professor_nome || 'Professor'} atualizou o treino "${dados.treino_nome}"`;
+      {
+        const incluidos = normalizarListaNomes(dados?.itens_incluidos || []);
+        const excluidos = normalizarListaNomes(dados?.itens_excluidos || []);
+        mensagem += formatarListaAlteracoes('Incluídos', incluidos);
+        mensagem += formatarListaAlteracoes('Excluídos', excluidos);
+      }
       break;
     case 'treino_excluido':
       mensagem = `${dados.professor_nome || 'Professor'} removeu o treino "${dados.treino_nome}" da sua lista`;
