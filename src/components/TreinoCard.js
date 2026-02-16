@@ -7,7 +7,7 @@ import { enviarNotificacao } from '../services/notificacoesService';
 import { Alert } from '../utils/alert';
 import { getAuthErrorMessage } from '../utils/authErrors';
 
-export default function TreinoCard({ treino, onOpen, alunoId, professorId, alunoNome }) {
+export default function TreinoCard({ treino, onOpen, alunoId, professorId, alunoNome, collapsedByDefault = false }) {
   const [exercicios, setExercicios] = useState(
     (treino.itens || []).map((e) => ({ ...e, done: false }))
   );
@@ -17,6 +17,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   const [editingIndex, setEditingIndex] = useState(null);
   const [pesoEditando, setPesoEditando] = useState('');
   const [mostrarFinalizacao, setMostrarFinalizacao] = useState(false);
+  const [detalhesAbertos, setDetalhesAbertos] = useState(true);
   const [nivelEsforco, setNivelEsforco] = useState(0);
   const [feedbackTreino, setFeedbackTreino] = useState('');
   const opcoesEsforco = [
@@ -26,6 +27,14 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
     { nivel: 4, emoji: '😓', label: 'Pesado' },
     { nivel: 5, emoji: '🥵', label: 'Muito pesado' }
   ];
+
+  const modoCompacto = collapsedByDefault === true;
+
+  useEffect(() => {
+    if (modoCompacto) {
+      setDetalhesAbertos(false);
+    }
+  }, [modoCompacto, treino?.id]);
 
   useEffect(() => {
     carregarSessaoAtiva();
@@ -73,12 +82,21 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       const novoSessaoId = await criarSessaoTreino(treino.id, alunoId, professorId);
       setSessaoId(novoSessaoId);
       
-      // Enviar notificação ao professor
-      await enviarNotificacao(professorId, alunoId, 'treino_iniciado', {
-        aluno_nome: alunoNome,
-        treino_nome: treino.nome_treino,
-        treino_id: treino.id
-      });
+      if (professorId) {
+        try {
+          await enviarNotificacao(professorId, alunoId, 'treino_iniciado', {
+            aluno_nome: alunoNome,
+            treino_nome: treino.nome_treino,
+            treino_id: treino.id
+          });
+        } catch (notifyErr) {
+          console.warn('Falha ao enviar notificação de treino iniciado:', notifyErr?.message || notifyErr);
+        }
+      }
+
+      if (modoCompacto) {
+        setDetalhesAbertos(true);
+      }
       
       Alert.alert('Sucesso', 'Treino iniciado! Boa sorte! 💪');
     } catch (err) {
@@ -111,15 +129,20 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
           carga: item.carga
         });
 
-        // Enviar notificação ao professor
-        await enviarNotificacao(professorId, alunoId, 'exercicio_concluido', {
-          aluno_nome: alunoNome,
-          exercicio_nome: item.exercicio_nome,
-          series: item.series,
-          repeticoes: item.repeticoes,
-          carga: item.carga,
-          treino_nome: treino.nome_treino
-        });
+        if (professorId) {
+          try {
+            await enviarNotificacao(professorId, alunoId, 'exercicio_concluido', {
+              aluno_nome: alunoNome,
+              exercicio_nome: item.exercicio_nome,
+              series: item.series,
+              repeticoes: item.repeticoes,
+              carga: item.carga,
+              treino_nome: treino.nome_treino
+            });
+          } catch (notifyErr) {
+            console.warn('Falha ao enviar notificação de exercício concluído:', notifyErr?.message || notifyErr);
+          }
+        }
       } catch (err) {
         console.error('Erro ao marcar exercício:', err);
         // Reverter em caso de erro
@@ -195,16 +218,21 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         feedback: String(feedbackTreino || '').trim() || null
       });
       
-      // Enviar notificação ao professor
-      await enviarNotificacao(professorId, alunoId, 'treino_finalizado', {
-        aluno_nome: alunoNome,
-        treino_nome: treino.nome_treino,
-        treino_id: treino.id,
-        total_exercicios: totalConcluidos,
-        total_planejado: total,
-        nivel_esforco: nivelEsforco,
-        feedback: String(feedbackTreino || '').trim() || null
-      });
+      if (professorId) {
+        try {
+          await enviarNotificacao(professorId, alunoId, 'treino_finalizado', {
+            aluno_nome: alunoNome,
+            treino_nome: treino.nome_treino,
+            treino_id: treino.id,
+            total_exercicios: totalConcluidos,
+            total_planejado: total,
+            nivel_esforco: nivelEsforco,
+            feedback: String(feedbackTreino || '').trim() || null
+          });
+        } catch (notifyErr) {
+          console.warn('Falha ao enviar notificação de treino finalizado:', notifyErr?.message || notifyErr);
+        }
+      }
 
       Alert.alert('Parabéns! 🎉', `Treino finalizado com sucesso!\n\n${totalConcluidos}/${total} exercícios concluídos`);
       
@@ -220,6 +248,14 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
   const doneCount = exercicios.filter((e) => e.done).length;
 
+  function handleAbrirDetalhes() {
+    if (modoCompacto) {
+      setDetalhesAbertos((prev) => !prev);
+      return;
+    }
+    if (onOpen) onOpen(treino);
+  }
+
   if (carregando) {
     return (
       <View style={styles.card}>
@@ -233,8 +269,8 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       <View style={styles.headerRow}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{treino.nome_treino}</Text>
-          <TouchableOpacity style={styles.openBtn} onPress={() => onOpen && onOpen(treino)}>
-            <Text style={styles.openBtnText}>Abrir</Text>
+          <TouchableOpacity style={styles.openBtn} onPress={handleAbrirDetalhes}>
+            <Text style={styles.openBtnText}>{modoCompacto ? (detalhesAbertos ? 'Fechar' : 'Abrir') : 'Abrir'}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.statusRow}>
@@ -260,60 +296,62 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         </TouchableOpacity>
       )}
 
-      <FlatList
-        data={exercicios}
-        keyExtractor={(item, i) => String(i)}
-        renderItem={({ item, index }) => (
-          <View style={styles.itemRow}>
-            <TouchableOpacity 
-              onPress={() => toggleDone(index)} 
-              style={[styles.checkbox, item.done && styles.checkboxDone]} 
-              testID={`checkbox-${index}`}
-              disabled={!sessaoId}
-            >
-              {item.done ? (
-                <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
-              ) : (
-                <Ionicons name="ellipse-outline" size={24} color={theme.colors.muted} style={{ opacity: sessaoId ? 1 : 0.4 }} />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.itemInfo} onPress={() => iniciarEdicaoPeso(index)} activeOpacity={0.8}>
-              <Text style={[styles.itemTitle, item.done && styles.itemTitleDone]}>{item.exercicio_nome || 'Exercício'}</Text>
-              <Text style={styles.itemMeta}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
-              <Text style={styles.itemHint}>Toque para editar apenas o peso</Text>
+      {detalhesAbertos && (
+        <FlatList
+          data={exercicios}
+          keyExtractor={(item, i) => String(i)}
+          renderItem={({ item, index }) => (
+            <View style={styles.itemRow}>
+              <TouchableOpacity 
+                onPress={() => toggleDone(index)} 
+                style={[styles.checkbox, item.done && styles.checkboxDone]} 
+                testID={`checkbox-${index}`}
+                disabled={!sessaoId}
+              >
+                {item.done ? (
+                  <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={24} color={theme.colors.muted} style={{ opacity: sessaoId ? 1 : 0.4 }} />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.itemInfo} onPress={() => iniciarEdicaoPeso(index)} activeOpacity={0.8}>
+                <Text style={[styles.itemTitle, item.done && styles.itemTitleDone]}>{item.exercicio_nome || 'Exercício'}</Text>
+                <Text style={styles.itemMeta}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
+                <Text style={styles.itemHint}>Toque para editar apenas o peso</Text>
 
-              {editingIndex === index && (
-                <View style={styles.editContainer}>
-                  <TextInput
-                    style={styles.editInput}
-                    value={pesoEditando}
-                    onChangeText={setPesoEditando}
-                    keyboardType="numeric"
-                    placeholder="Novo peso (kg)"
-                  />
-                  <View style={styles.editActions}>
-                    <TouchableOpacity style={styles.editSaveBtn} onPress={() => salvarPeso(index)}>
-                      <Text style={styles.editSaveText}>Salvar peso</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.editCancelBtn} onPress={cancelarEdicaoPeso}>
-                      <Text style={styles.editCancelText}>Cancelar</Text>
-                    </TouchableOpacity>
+                {editingIndex === index && (
+                  <View style={styles.editContainer}>
+                    <TextInput
+                      style={styles.editInput}
+                      value={pesoEditando}
+                      onChangeText={setPesoEditando}
+                      keyboardType="numeric"
+                      placeholder="Novo peso (kg)"
+                    />
+                    <View style={styles.editActions}>
+                      <TouchableOpacity style={styles.editSaveBtn} onPress={() => salvarPeso(index)}>
+                        <Text style={styles.editSaveText}>Salvar peso</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.editCancelBtn} onPress={cancelarEdicaoPeso}>
+                        <Text style={styles.editCancelText}>Cancelar</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-      />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        />
+      )}
 
-      {sessaoId && (
+      {sessaoId && detalhesAbertos && (
         <TouchableOpacity style={styles.finishBtn} onPress={abrirFinalizacao}>
           <Ionicons name="checkmark-done" size={16} color={theme.colors.card} />
           <Text style={styles.finishText}>  Finalizar Sessão</Text>
         </TouchableOpacity>
       )}
 
-      {sessaoId && mostrarFinalizacao && (
+      {sessaoId && mostrarFinalizacao && detalhesAbertos && (
         <View style={styles.finalizacaoCard}>
           <Text style={styles.finalizacaoTitle}>Nível de esforço do treino</Text>
           <Text style={styles.finalizacaoHint}>Escolha a carinha que melhor representa seu esforço</Text>

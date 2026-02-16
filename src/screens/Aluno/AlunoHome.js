@@ -202,6 +202,7 @@ export default function AlunoHome({ navigation }) {
           alunoId={auth.currentUser?.uid}
           professorId={t.professor_id}
           alunoNome={profile?.nome || 'Aluno'}
+          collapsedByDefault
         />
       ))}
     </ScrollView>

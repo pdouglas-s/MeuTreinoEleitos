@@ -1,6 +1,12 @@
 import { db } from '../firebase/config';
 import { collection, addDoc, query, where, getDocs, orderBy, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
+function removeUndefinedFields(data) {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined)
+  );
+}
+
 /**
  * Cria uma sessão de treino (treino do dia)
  */
@@ -28,16 +34,15 @@ export async function criarSessaoTreino(treinoId, alunoId, professorId) {
  */
 export async function marcarExercicioConcluido(sessaoId, exercicioData) {
   const sessaoRef = doc(db, 'sessoes_treino', sessaoId);
-  const exercicioCompleto = {
+  const exercicioCompleto = removeUndefinedFields({
     ...exercicioData,
     concluido_em: new Date()
-  };
+  });
   
-  // Buscar sessão atual para adicionar exercício ao array
-  const sessaoDoc = await getDocs(query(collection(db, 'sessoes_treino'), where('__name__', '==', sessaoId)));
-  if (sessaoDoc.empty) throw new Error('Sessão não encontrada');
-  
-  const sessaoData = sessaoDoc.docs[0].data();
+  const sessaoDoc = await getDoc(sessaoRef);
+  if (!sessaoDoc.exists()) throw new Error('Sessão não encontrada');
+
+  const sessaoData = sessaoDoc.data();
   const exercicios = sessaoData.exercicios || [];
   exercicios.push(exercicioCompleto);
   

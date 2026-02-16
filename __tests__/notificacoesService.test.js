@@ -97,6 +97,22 @@ describe('notificacoesService - envio direcionado', () => {
     jest.clearAllMocks();
   });
 
+  test('treino_iniciado deve aparecer apenas para professor', async () => {
+    addDoc.mockResolvedValue({ id: 'notif-start-1' });
+
+    await enviarNotificacao('prof-1', 'aluno-1', 'treino_iniciado', {
+      treino_id: 'treino-1',
+      treino_nome: 'Treino A',
+      aluno_nome: 'Aluno X'
+    });
+
+    expect(addDoc).toHaveBeenCalledTimes(1);
+    const payload = addDoc.mock.calls[0][1];
+    expect(payload.tipo).toBe('treino_iniciado');
+    expect(payload.professor_id).toBe('prof-1');
+    expect(payload.aluno_id).toBeNull();
+  });
+
   test('treino_associado deve aparecer apenas para aluno', async () => {
     addDoc.mockResolvedValue({ id: 'notif-assoc-1' });
 

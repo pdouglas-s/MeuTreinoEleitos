@@ -75,7 +75,9 @@ function coletarFeedbacks(sessoes) {
 export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const notifRef = collection(db, 'notificacoes');
   const tiposSomenteAluno = ['treino_associado', 'treino_atualizado', 'treino_excluido'];
-  const professorDestinoId = tiposSomenteAluno.includes(tipo) ? null : professorId;
+  const tiposSomenteProfessor = ['treino_iniciado', 'exercicio_concluido', 'treino_finalizado'];
+  const professorDestinoId = (tiposSomenteAluno.includes(tipo) ? null : professorId) ?? null;
+  const alunoDestinoId = (tiposSomenteProfessor.includes(tipo) ? null : alunoId) ?? null;
 
   const intensidadeTexto = {
     1: '😄 Muito leve',
@@ -117,7 +119,7 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   
   const docRef = await addDoc(notifRef, {
     professor_id: professorDestinoId,
-    aluno_id: alunoId,
+    aluno_id: alunoDestinoId,
     tipo,
     mensagem,
     dados,
