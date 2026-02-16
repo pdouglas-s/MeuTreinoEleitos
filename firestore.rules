@@ -137,7 +137,6 @@ service cloud.firestore {
           || isSystemAdmin()
           || (isAcademyStaff() && isSameAcademia(resource.data.academia_id))
         )
-        && request.resource.data.nome == resource.data.nome
         && request.resource.data.role == resource.data.role
         && (
           !request.resource.data.keys().hasAny(['academia_id'])
@@ -159,7 +158,7 @@ service cloud.firestore {
           )
           || (
             isAcademyAdmin()
-            && resource.data.role == 'professor'
+            && (resource.data.role == 'professor' || resource.data.role == 'aluno')
             && isSameAcademia(resource.data.academia_id)
           )
         );

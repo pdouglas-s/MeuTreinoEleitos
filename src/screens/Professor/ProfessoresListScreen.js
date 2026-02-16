@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableOpacity } from 'react-native';
 import theme from '../../theme';
-import { listAllProfessores } from '../../services/userService';
+import { deleteProfessorProfile, listAllProfessores, updateManagedUserProfile } from '../../services/userService';
 import { Alert } from '../../utils/alert';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 
@@ -9,6 +9,10 @@ export default function ProfessoresListScreen() {
   const [professores, setProfessores] = useState([]);
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selecionadoId, setSelecionadoId] = useState('');
+  const [editandoId, setEditandoId] = useState('');
+  const [editNome, setEditNome] = useState('');
+  const [editEmail, setEditEmail] = useState('');
 
   useEffect(() => {
     carregarProfessores();
@@ -37,6 +41,48 @@ export default function ProfessoresListScreen() {
     });
   }, [professores, busca]);
 
+  function iniciarEdicao(professor) {
+    setEditandoId(professor.id);
+    setEditNome(String(professor?.nome || ''));
+    setEditEmail(String(professor?.email || ''));
+  }
+
+  function cancelarEdicao() {
+    setEditandoId('');
+    setEditNome('');
+    setEditEmail('');
+  }
+
+  async function salvarEdicao(professorId) {
+    try {
+      await updateManagedUserProfile({ userId: professorId, nome: editNome, email: editEmail });
+      Alert.alert('Sucesso', 'Professor atualizado com sucesso');
+      cancelarEdicao();
+      await carregarProfessores();
+    } catch (err) {
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível atualizar o professor.'));
+    }
+  }
+
+  async function excluirProfessor(professor) {
+    const confirmado = await Alert.confirm(
+      'Confirmar exclusão',
+      `Deseja realmente excluir o professor "${professor?.nome || 'Professor'}"?`,
+      { confirmText: 'Excluir', destructive: true }
+    );
+
+    if (!confirmado) return;
+
+    try {
+      await deleteProfessorProfile(professor.id);
+      Alert.alert('Sucesso', 'Professor excluído com sucesso');
+      if (selecionadoId === professor.id) setSelecionadoId('');
+      await carregarProfessores();
+    } catch (err) {
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o professor.'));
+    }
+  }
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -61,10 +107,52 @@ export default function ProfessoresListScreen() {
         data={professoresFiltrados}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.itemRow}>
+          <TouchableOpacity
+            style={styles.itemRow}
+            activeOpacity={0.85}
+            onPress={() => setSelecionadoId((prev) => (prev === item.id ? '' : item.id))}
+          >
             <Text style={styles.itemNome}>{item.nome}</Text>
             <Text style={styles.itemEmail}>{item.email}</Text>
-          </View>
+
+            {selecionadoId === item.id && editandoId !== item.id && (
+              <View style={styles.actionsRow}>
+                <TouchableOpacity style={styles.editBtn} onPress={() => iniciarEdicao(item)}>
+                  <Text style={styles.editBtnText}>✏️ Editar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => excluirProfessor(item)}>
+                  <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {editandoId === item.id && (
+              <View style={styles.editBox}>
+                <TextInput
+                  placeholder="Nome"
+                  style={styles.inputEdit}
+                  value={editNome}
+                  onChangeText={setEditNome}
+                />
+                <TextInput
+                  placeholder="E-mail"
+                  style={styles.inputEdit}
+                  value={editEmail}
+                  onChangeText={setEditEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+                <View style={styles.actionsRow}>
+                  <TouchableOpacity style={styles.saveBtn} onPress={() => salvarEdicao(item.id)}>
+                    <Text style={styles.saveBtnText}>Salvar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={cancelarEdicao}>
+                    <Text style={styles.cancelBtnText}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </TouchableOpacity>
         )}
         ListEmptyComponent={<Text style={styles.emptyHint}>Nenhum professor encontrado.</Text>}
       />
@@ -121,6 +209,79 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 12,
     color: theme.colors.muted
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10
+  },
+  editBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: theme.colors.background
+  },
+  editBtnText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  deleteBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: theme.colors.background
+  },
+  deleteBtnText: {
+    color: theme.colors.danger,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  editBox: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 10
+  },
+  inputEdit: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    padding: 10,
+    backgroundColor: theme.colors.background,
+    marginBottom: 8
+  },
+  saveBtn: {
+    flex: 1,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary
+  },
+  saveBtnText: {
+    color: theme.colors.card,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  cancelBtn: {
+    flex: 1,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: theme.colors.background
+  },
+  cancelBtnText: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    fontWeight: '600'
   },
   emptyHint: {
     marginTop: 8,

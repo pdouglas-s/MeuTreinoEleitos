@@ -3,7 +3,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassw
 import { getAuth, signOut } from 'firebase/auth';
 import { setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
 import Constants from 'expo-constants';
 import { isValidEmail, normalizeEmail } from '../utils/validation';
 
@@ -274,6 +274,80 @@ export async function deleteProfessorProfile(professorId) {
   }
 
   await deleteDoc(ref);
+}
+
+export async function deleteAlunoProfile(alunoId) {
+  const academyAdmin = await isCurrentUserAcademyAdmin();
+  if (!academyAdmin) throw new Error('Apenas admin de academia pode excluir aluno');
+
+  const ref = doc(db, 'users', alunoId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Aluno não encontrado');
+
+  const data = snap.data();
+  if (data.role !== ROLE_ALUNO) {
+    throw new Error('O usuário informado não é aluno');
+  }
+
+  const minhaAcademia = await getCurrentUserAcademiaId();
+  if (minhaAcademia && data.academia_id !== minhaAcademia) {
+    throw new Error('Sem permissão para excluir usuário de outra academia');
+  }
+
+  const treinosCol = collection(db, 'treinos');
+  const treinoAssociadoQ = query(treinosCol, where('aluno_id', '==', alunoId), limit(1));
+  const treinoAssociadoSnap = await getDocs(treinoAssociadoQ);
+  if (!treinoAssociadoSnap.empty) {
+    throw new Error('Não é possível excluir aluno com treino associado');
+  }
+
+  const emailNormalizado = normalizeEmail(data.email || '');
+  if (emailNormalizado) {
+    await setDoc(doc(db, 'emails_bloqueados', emailNormalizado), {
+      email: emailNormalizado,
+      blocked_at: serverTimestamp(),
+      blocked_by: auth.currentUser?.uid || null,
+      reason: 'aluno_deleted_firestore_only'
+    }, { merge: true });
+  }
+
+  await deleteDoc(ref);
+}
+
+export async function updateManagedUserProfile({ userId, nome, email }) {
+  const academyAdmin = await isCurrentUserAcademyAdmin();
+  if (!academyAdmin) throw new Error('Apenas admin de academia pode editar usuários');
+
+  const ref = doc(db, 'users', userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Usuário não encontrado');
+
+  const data = snap.data();
+  if (![ROLE_ALUNO, ROLE_PROFESSOR].includes(data.role)) {
+    throw new Error('Apenas alunos e professores podem ser editados nesta tela');
+  }
+
+  const minhaAcademia = await getCurrentUserAcademiaId();
+  if (minhaAcademia && data.academia_id !== minhaAcademia) {
+    throw new Error('Sem permissão para editar usuário de outra academia');
+  }
+
+  const payload = {};
+
+  const nomeNormalizado = String(nome || '').trim();
+  if (nomeNormalizado) {
+    payload.nome = nomeNormalizado.toUpperCase();
+  }
+
+  if (email !== undefined) {
+    const emailNormalizado = normalizeEmail(email);
+    if (!isValidEmail(emailNormalizado)) throw new Error('E-mail inválido');
+    payload.email = emailNormalizado;
+  }
+
+  if (!Object.keys(payload).length) return;
+
+  await updateDoc(ref, payload);
 }
 
 export async function unblockBlockedEmail(email) {
