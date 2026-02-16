@@ -1,5 +1,6 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onDocumentDeleted } = require('firebase-functions/v2/firestore');
 const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 
@@ -237,6 +238,126 @@ exports.enviarResumoSemanalAtletas = onSchedule(
       processados,
       enviados,
       ignorados
+    });
+  }
+);
+
+exports.limparVinculoTreinosAlunoExcluido = onDocumentDeleted(
+  {
+    document: 'users/{userId}',
+    region: 'us-central1'
+  },
+  async (event) => {
+    const userId = event.params?.userId;
+    const deletedData = event.data?.data() || {};
+
+    if (!userId || deletedData.role !== 'aluno') {
+      return;
+    }
+
+    const db = admin.firestore();
+    let totalTreinosAtualizados = 0;
+    let totalSessoesRemovidas = 0;
+    let totalNotificacoesRemovidas = 0;
+    let cursor = null;
+
+    while (true) {
+      let query = db
+        .collection('treinos')
+        .where('aluno_id', '==', userId)
+        .orderBy(admin.firestore.FieldPath.documentId())
+        .limit(400);
+
+      if (cursor) {
+        query = query.startAfter(cursor);
+      }
+
+      const snapshot = await query.get();
+      if (snapshot.empty) {
+        break;
+      }
+
+      const batch = db.batch();
+      snapshot.docs.forEach((docSnap) => {
+        batch.update(docSnap.ref, { aluno_id: '' });
+      });
+
+      await batch.commit();
+      totalTreinosAtualizados += snapshot.size;
+      cursor = snapshot.docs[snapshot.docs.length - 1];
+
+      if (snapshot.size < 400) {
+        break;
+      }
+    }
+
+    cursor = null;
+    while (true) {
+      let query = db
+        .collection('sessoes_treino')
+        .where('aluno_id', '==', userId)
+        .orderBy(admin.firestore.FieldPath.documentId())
+        .limit(400);
+
+      if (cursor) {
+        query = query.startAfter(cursor);
+      }
+
+      const snapshot = await query.get();
+      if (snapshot.empty) {
+        break;
+      }
+
+      const batch = db.batch();
+      snapshot.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+
+      await batch.commit();
+      totalSessoesRemovidas += snapshot.size;
+      cursor = snapshot.docs[snapshot.docs.length - 1];
+
+      if (snapshot.size < 400) {
+        break;
+      }
+    }
+
+    cursor = null;
+    while (true) {
+      let query = db
+        .collection('notificacoes')
+        .where('aluno_id', '==', userId)
+        .orderBy(admin.firestore.FieldPath.documentId())
+        .limit(400);
+
+      if (cursor) {
+        query = query.startAfter(cursor);
+      }
+
+      const snapshot = await query.get();
+      if (snapshot.empty) {
+        break;
+      }
+
+      const batch = db.batch();
+      snapshot.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+
+      await batch.commit();
+      totalNotificacoesRemovidas += snapshot.size;
+      cursor = snapshot.docs[snapshot.docs.length - 1];
+
+      if (snapshot.size < 400) {
+        break;
+      }
+    }
+
+    logger.info('Limpeza de dados órfãos concluída para aluno excluído', {
+      userId,
+      totalTreinosAtualizados,
+      totalSessoesRemovidas,
+      totalNotificacoesRemovidas
     });
   }
 );

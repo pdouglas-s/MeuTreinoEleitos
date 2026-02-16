@@ -204,7 +204,13 @@ service cloud.firestore {
       );
 
       allow delete: if request.auth != null
-        && resource.data.bloqueado_exclusao != true
+        && (
+          resource.data.bloqueado_exclusao != true
+          || (
+            resource.data.aluno_id is string
+            && resource.data.aluno_id != ''
+          )
+        )
         && (
           (isSystemAdmin() && resource.data.is_padrao == true)
           || (
