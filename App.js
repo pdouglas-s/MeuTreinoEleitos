@@ -10,7 +10,7 @@ const Stack = createNativeStackNavigator();
 
 function readPublicEnv(name) {
   const extraValue = Constants.expoConfig?.extra?.[name];
-  const envValue = process?.env?.[name];
+  const envValue = typeof process !== 'undefined' && process?.env ? process.env[name] : undefined;
   return extraValue || envValue || '';
 }
 
