@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import theme from '../theme';
 import { Alert } from '../utils/alert';
-import { listItensByTreino, addItemToTreino, deleteItem } from '../services/treinoItensService';
+import { listItensByTreino, addItemToTreino, deleteItem, reorderItensByTreino, updateTreinoItem } from '../services/treinoItensService';
 import { updateTreino, deleteTreino, duplicateTreinoParaAluno } from '../services/treinoService';
 import { listAllExercicios } from '../services/exerciciosService';
 import { listAllAlunos } from '../services/userService';
@@ -27,6 +27,12 @@ export default function TreinoDetail({ route, navigation }) {
     || (profile?.role === 'professor' && isTreinoOwner && treino?.is_padrao !== true);
   const canManageItens = isAcademiaEditableTreino;
   const [itens, setItens] = useState([]);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editItemNome, setEditItemNome] = useState('');
+  const [editItemSeries, setEditItemSeries] = useState('');
+  const [editItemRepeticoes, setEditItemRepeticoes] = useState('');
+  const [editItemCarga, setEditItemCarga] = useState('');
   const [loading, setLoading] = useState(true);
   const originalTreinoRef = useRef({
     nome_treino: treino.nome_treino || '',
@@ -92,7 +98,8 @@ export default function TreinoDetail({ route, navigation }) {
           series: item.series,
           repeticoes: item.repeticoes,
           carga: item.carga,
-          descanso: item.descanso
+          descanso: item.descanso,
+          ordem: item.ordem
         }));
       }
     } catch (err) {
@@ -176,10 +183,37 @@ export default function TreinoDetail({ route, navigation }) {
           repeticoes: item.repeticoes,
           carga: item.carga,
           descanso: item.descanso,
+          ordem: item.ordem,
           allowDuplicate: true
         })
       )
     );
+  }
+
+  async function handleMoveItem(itemId, direction) {
+    if (!ensureCanManageItens() || isSavingOrder) return;
+
+    const currentIndex = itens.findIndex((item) => item.id === itemId);
+    if (currentIndex < 0) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= itens.length) return;
+
+    const previous = [...itens];
+    const reordered = [...itens];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    setItens(reordered);
+    setIsSavingOrder(true);
+    try {
+      await reorderItensByTreino(treino.id, reordered.map((item) => item.id));
+    } catch (err) {
+      setItens(previous);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível reordenar os exercícios.'));
+    } finally {
+      setIsSavingOrder(false);
+    }
   }
 
   function ensureCanManageItens() {
@@ -203,7 +237,20 @@ export default function TreinoDetail({ route, navigation }) {
     if (jaExiste) return Alert.alert('Atenção', 'Este exercício já foi adicionado neste treino');
 
     try {
-      await addItemToTreino({ treino_id: treino.id, exercicio_nome: exNome, series: Number(series) || null, repeticoes: Number(reps) || null, carga: Number(carga) || null });
+      const seriesValue = String(series || '').trim();
+      const repeticoesValue = String(reps || '').trim();
+      const cargaValue = String(carga || '').trim();
+      const cargaNumerica = Number(cargaValue.replace(',', '.'));
+
+      await addItemToTreino({
+        treino_id: treino.id,
+        exercicio_nome: exNome,
+        series: seriesValue ? Number(seriesValue) : null,
+        repeticoes: repeticoesValue || null,
+        carga: cargaValue
+          ? (Number.isNaN(cargaNumerica) ? cargaValue : cargaNumerica)
+          : null
+      });
       await notificarTreinoAtualizado(treino.id, editNome || treino.nome_treino || 'Treino');
       setExNome(''); setSeries(''); setReps(''); setCarga('');
       loadItens();
@@ -222,6 +269,64 @@ export default function TreinoDetail({ route, navigation }) {
       Alert.alert('Sucesso', 'Item removido');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível remover o exercício.'));
+    }
+  }
+
+  function startEditItem(item) {
+    setEditingItemId(item.id);
+    setEditItemNome(String(item?.exercicio_nome || ''));
+    setEditItemSeries(String(item?.series ?? ''));
+    setEditItemRepeticoes(String(item?.repeticoes ?? ''));
+    setEditItemCarga(String(item?.carga ?? ''));
+  }
+
+  function cancelEditItem() {
+    setEditingItemId(null);
+    setEditItemNome('');
+    setEditItemSeries('');
+    setEditItemRepeticoes('');
+    setEditItemCarga('');
+  }
+
+  async function handleSaveEditedItem(item) {
+    if (!ensureCanManageItens()) return;
+
+    const nomeNormalizado = String(editItemNome || '').trim();
+    if (!nomeNormalizado) {
+      Alert.alert('Erro', 'Nome do exercício é obrigatório');
+      return;
+    }
+
+    const duplicado = itens.some((it) =>
+      it.id !== item.id && String(it?.exercicio_nome || '').trim().toLowerCase() === nomeNormalizado.toLowerCase()
+    );
+    if (duplicado) {
+      Alert.alert('Atenção', 'Já existe outro exercício com esse nome neste treino');
+      return;
+    }
+
+    const seriesValue = String(editItemSeries || '').trim();
+    const repeticoesValue = String(editItemRepeticoes || '').trim();
+    const cargaValue = String(editItemCarga || '').trim();
+    const cargaNumerica = Number(cargaValue.replace(',', '.'));
+
+    try {
+      const payload = {
+        exercicio_nome: nomeNormalizado,
+        series: seriesValue ? Number(seriesValue) : null,
+        repeticoes: repeticoesValue || null,
+        carga: cargaValue
+          ? (Number.isNaN(cargaNumerica) ? cargaValue : cargaNumerica)
+          : null
+      };
+
+      await updateTreinoItem(item.id, payload);
+      await notificarTreinoAtualizado(treino.id, editNome || treino.nome_treino || 'Treino');
+      cancelEditItem();
+      await loadItens();
+      Alert.alert('Sucesso', 'Exercício atualizado');
+    } catch (err) {
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível editar o exercício.'));
     }
   }
 
@@ -306,7 +411,8 @@ export default function TreinoDetail({ route, navigation }) {
         series: item.series,
         repeticoes: item.repeticoes,
         carga: item.carga,
-        descanso: item.descanso
+        descanso: item.descanso,
+        ordem: item.ordem
       }));
 
       Alert.alert('Sucesso', mensagemSucesso);
@@ -384,16 +490,26 @@ export default function TreinoDetail({ route, navigation }) {
 
   async function buscarExercicios(termo) {
     setBusca(termo);
-    const termoCategoria = String(termo || '').trim().toLowerCase();
-    if (termoCategoria.length < 2) {
+    const termoBusca = String(termo || '').trim().toLowerCase();
+    if (termoBusca.length < 2) {
       setExerciciosEncontrados(todosExercicios);
       return;
     }
 
-    const filtrados = todosExercicios.filter((ex) =>
-      String(ex.categoria || '').toLowerCase().includes(termoCategoria)
+    const filtradosPorNome = todosExercicios.filter((ex) =>
+      String(ex.nome || '').toLowerCase().includes(termoBusca)
     );
-    setExerciciosEncontrados(filtrados);
+
+    if (filtradosPorNome.length > 0) {
+      setExerciciosEncontrados(filtradosPorNome);
+      return;
+    }
+
+    const filtradosPorCategoria = todosExercicios.filter((ex) =>
+      String(ex.categoria || '').toLowerCase().includes(termoBusca)
+    );
+
+    setExerciciosEncontrados(filtradosPorCategoria);
   }
 
   function selecionarExercicio(exercicio) {
@@ -403,6 +519,28 @@ export default function TreinoDetail({ route, navigation }) {
     setCarga(String(exercicio.carga_padrao || ''));
     setMostrarBusca(false);
     setBusca('');
+  }
+
+  function formatExercicioResumo(item) {
+    const seriesText = String(item?.series ?? '').trim();
+    const repeticoesText = String(item?.repeticoes ?? '').trim();
+    const cargaText = String(item?.carga ?? '').trim();
+
+    const partes = [];
+    if (seriesText && repeticoesText) {
+      partes.push(`${seriesText} x ${repeticoesText}`);
+    } else if (seriesText) {
+      partes.push(`${seriesText} séries`);
+    } else if (repeticoesText) {
+      partes.push(repeticoesText);
+    }
+
+    if (cargaText) {
+      const cargaNumero = Number(cargaText.replace(',', '.'));
+      partes.push(Number.isNaN(cargaNumero) ? cargaText : `${cargaText}kg`);
+    }
+
+    return partes.join(' • ');
   }
 
   return (
@@ -415,14 +553,50 @@ export default function TreinoDetail({ route, navigation }) {
         {!loading && itens.length === 0 && <Text style={styles.mutedText}>Nenhum exercício adicionado ainda</Text>}
         {!loading && itens.map((item) => (
           <View key={item.id} style={styles.itemRow}>
-            <View style={{ flex: 1 }}>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => canManageItens && startEditItem(item)} activeOpacity={0.8}>
               <Text style={{ fontSize: 16, color: theme.colors.text }}>{item.exercicio_nome}</Text>
-              <Text style={{ color: theme.colors.muted }}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
-            </View>
+              {!!formatExercicioResumo(item) && (
+                <Text style={{ color: theme.colors.muted }}>{formatExercicioResumo(item)}</Text>
+              )}
+              {canManageItens && <Text style={styles.itemHint}>Toque para editar este exercício</Text>}
+
+              {editingItemId === item.id && (
+                <View style={styles.itemEditBox}>
+                  <TextInput placeholder="Nome do exercício" style={styles.input} value={editItemNome} onChangeText={setEditItemNome} />
+                  <TextInput placeholder="Séries" style={styles.input} value={editItemSeries} onChangeText={setEditItemSeries} keyboardType="numeric" />
+                  <TextInput placeholder="Repetições" style={styles.input} value={editItemRepeticoes} onChangeText={setEditItemRepeticoes} />
+                  <TextInput placeholder="Carga (kg)" style={styles.input} value={editItemCarga} onChangeText={setEditItemCarga} keyboardType="numeric" />
+                  <View style={styles.itemEditActions}>
+                    <TouchableOpacity style={styles.itemEditSaveBtn} onPress={() => handleSaveEditedItem(item)}>
+                      <Text style={styles.itemEditSaveText}>Salvar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.itemEditCancelBtn} onPress={cancelEditItem}>
+                      <Text style={styles.itemEditCancelText}>Cancelar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
             {canManageItens && (
-              <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
-                <Text style={{ color: '#dc2626' }}>Remover</Text>
-              </TouchableOpacity>
+              <View style={styles.itemActions}>
+                <TouchableOpacity
+                  onPress={() => handleMoveItem(item.id, 'up')}
+                  style={styles.orderBtn}
+                  disabled={isSavingOrder}
+                >
+                  <Text style={styles.orderBtnText}>↑</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleMoveItem(item.id, 'down')}
+                  style={styles.orderBtn}
+                  disabled={isSavingOrder}
+                >
+                  <Text style={styles.orderBtnText}>↓</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
+                  <Text style={{ color: '#dc2626' }}>Remover</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         ))}
@@ -464,7 +638,7 @@ export default function TreinoDetail({ route, navigation }) {
 
         <TextInput placeholder="Nome do exercício" style={styles.input} value={exNome} onChangeText={setExNome} />
         <TextInput placeholder="Séries" style={styles.input} value={series} onChangeText={setSeries} keyboardType="numeric" />
-        <TextInput placeholder="Repetições" style={styles.input} value={reps} onChangeText={setReps} keyboardType="numeric" />
+        <TextInput placeholder="Repetições" style={styles.input} value={reps} onChangeText={setReps} />
         <TextInput placeholder="Carga (kg)" style={styles.input} value={carga} onChangeText={setCarga} keyboardType="numeric" />
         <Button title="Adicionar" onPress={handleAddItem} />
         </View>
@@ -545,6 +719,63 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0'
+  },
+  itemHint: {
+    marginTop: 2,
+    fontSize: 11,
+    color: theme.colors.muted
+  },
+  itemEditBox: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    padding: 8,
+    backgroundColor: theme.colors.background
+  },
+  itemEditActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4
+  },
+  itemEditSaveBtn: {
+    backgroundColor: '#059669',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: theme.radii.sm
+  },
+  itemEditSaveText: {
+    color: theme.colors.card,
+    fontWeight: '600'
+  },
+  itemEditCancelBtn: {
+    backgroundColor: '#e5e7eb',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: theme.radii.sm
+  },
+  itemEditCancelText: {
+    color: theme.colors.text,
+    fontWeight: '600'
+  },
+  itemActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  orderBtn: {
+    width: 28,
+    height: 28,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background
+  },
+  orderBtnText: {
+    color: theme.colors.text,
+    fontWeight: '700'
   },
   deleteButton: {
     marginTop: 24,

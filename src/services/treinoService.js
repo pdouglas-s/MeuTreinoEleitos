@@ -149,7 +149,8 @@ export async function duplicateTreinoParaAluno(treino_id, { aluno_id, nome_trein
       series: item.series,
       repeticoes: item.repeticoes,
       carga: item.carga,
-      descanso: item.descanso
+      descanso: item.descanso,
+      ordem: item.ordem
     };
     const sanitizedPayload = Object.fromEntries(
       Object.entries(payload).filter(([, value]) => value !== undefined)

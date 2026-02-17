@@ -36,12 +36,26 @@ export default function AlunoHome({ navigation }) {
       unsubscribeItens = [];
     }
 
+    function sortItensByOrdem(list = []) {
+      return [...list].sort((a, b) => {
+        const ordemA = Number.isFinite(a?.ordem) ? a.ordem : null;
+        const ordemB = Number.isFinite(b?.ordem) ? b.ordem : null;
+
+        if (ordemA !== null && ordemB !== null) return ordemA - ordemB;
+        if (ordemA !== null) return -1;
+        if (ordemB !== null) return 1;
+        return 0;
+      });
+    }
+
     function watchItensPorTreino(treinosBase) {
       clearItensListeners();
       unsubscribeItens = treinosBase.map((treinoBase) => {
         const itensQuery = query(collection(db, 'treino_itens'), where('treino_id', '==', treinoBase.id));
         return onSnapshot(itensQuery, (itensSnapshot) => {
-          const itens = itensSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+          const itens = sortItensByOrdem(
+            itensSnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+          );
           setTreinos((prev) => prev.map((treinoAtual) => (
             treinoAtual.id === treinoBase.id ? { ...treinoAtual, itens } : treinoAtual
           )));

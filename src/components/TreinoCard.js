@@ -32,6 +32,28 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
   const modoCompacto = collapsedByDefault === true;
 
+  function formatExercicioResumo(item) {
+    const seriesText = String(item?.series ?? '').trim();
+    const repeticoesText = String(item?.repeticoes ?? '').trim();
+    const cargaText = String(item?.carga ?? '').trim();
+
+    const partes = [];
+    if (seriesText && repeticoesText) {
+      partes.push(`${seriesText} x ${repeticoesText}`);
+    } else if (seriesText) {
+      partes.push(`${seriesText} séries`);
+    } else if (repeticoesText) {
+      partes.push(repeticoesText);
+    }
+
+    if (cargaText) {
+      const cargaNumero = Number(cargaText.replace(',', '.'));
+      partes.push(Number.isNaN(cargaNumero) ? cargaText : `${cargaText}kg`);
+    }
+
+    return partes.join(' • ');
+  }
+
   useEffect(() => {
     if (modoCompacto) {
       setDetalhesAbertos(false);
@@ -385,7 +407,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
               </TouchableOpacity>
               <TouchableOpacity style={styles.itemInfo} onPress={() => iniciarEdicaoPeso(index)} activeOpacity={0.8}>
                 <Text style={[styles.itemTitle, item.done && styles.itemTitleDone]}>{item.exercicio_nome || 'Exercício'}</Text>
-                <Text style={styles.itemMeta}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
+                {!!formatExercicioResumo(item) && <Text style={styles.itemMeta}>{formatExercicioResumo(item)}</Text>}
                 <Text style={styles.itemHint}>Toque para editar apenas o peso</Text>
 
                 {editingIndex === index && (
