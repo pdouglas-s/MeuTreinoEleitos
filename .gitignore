@@ -3,6 +3,7 @@ node_modules/
 android/
 ios/
 .env
+web-build/
 
 # Service account keys (não commitar)
 meu-treino-eleitos-firebase-adminsdk-*.json
