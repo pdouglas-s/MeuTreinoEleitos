@@ -13,26 +13,32 @@ const ROLE_PROFESSOR = 'professor';
 const ROLE_ADMIN_SISTEMA = 'admin_sistema';
 const ROLE_ADMIN_ACADEMIA = 'admin_academia';
 
+function readPublicEnv(name) {
+  const extraValue = Constants.expoConfig?.extra?.[name];
+  const envValue = process?.env?.[name];
+  return extraValue || envValue || '';
+}
+
 function getFirebaseClientConfig() {
-  const extra = Constants.expoConfig?.extra || {};
-  const projectId = extra.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'meu-treino-eleitos';
+  const projectId = readPublicEnv('EXPO_PUBLIC_FIREBASE_PROJECT_ID') || 'meu-treino-eleitos';
 
   return {
-    apiKey: extra.EXPO_PUBLIC_FIREBASE_API_KEY || '',
-    authDomain: extra.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`,
+    apiKey: readPublicEnv('EXPO_PUBLIC_FIREBASE_API_KEY'),
+    authDomain: readPublicEnv('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN') || `${projectId}.firebaseapp.com`,
     projectId,
-    storageBucket: extra.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`,
-    messagingSenderId: extra.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
-    appId: extra.EXPO_PUBLIC_FIREBASE_APP_ID || ''
+    storageBucket: readPublicEnv('EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET') || `${projectId}.appspot.com`,
+    messagingSenderId: readPublicEnv('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'),
+    appId: readPublicEnv('EXPO_PUBLIC_FIREBASE_APP_ID')
   };
 }
 
 function getDefaultPasswordByRole(role) {
-  const extra = Constants.expoConfig?.extra || {};
+  const defaultTeacherPassword = readPublicEnv('DEFAULT_TEACHER_PASSWORD');
+  const defaultStudentPassword = readPublicEnv('DEFAULT_STUDENT_PASSWORD');
   if (role === ROLE_PROFESSOR || role === ROLE_ADMIN_ACADEMIA) {
-    return extra.DEFAULT_TEACHER_PASSWORD || extra.DEFAULT_STUDENT_PASSWORD || '';
+    return defaultTeacherPassword || defaultStudentPassword || '';
   }
-  return extra.DEFAULT_STUDENT_PASSWORD || '';
+  return defaultStudentPassword || '';
 }
 
 async function getCurrentUserProfile() {

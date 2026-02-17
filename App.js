@@ -8,12 +8,17 @@ import Constants from 'expo-constants';
 
 const Stack = createNativeStackNavigator();
 
+function readPublicEnv(name) {
+  const extraValue = Constants.expoConfig?.extra?.[name];
+  const envValue = process?.env?.[name];
+  return extraValue || envValue || '';
+}
+
 // Verifica se as variáveis Firebase essenciais estão configuradas
 const isFirebaseConfigured = () => {
   try {
-    const extra = Constants.expoConfig?.extra || {};
-    const apiKey = extra.EXPO_PUBLIC_FIREBASE_API_KEY;
-    const appId = extra.EXPO_PUBLIC_FIREBASE_APP_ID;
+    const apiKey = readPublicEnv('EXPO_PUBLIC_FIREBASE_API_KEY');
+    const appId = readPublicEnv('EXPO_PUBLIC_FIREBASE_APP_ID');
     console.log('Checking Firebase config:', { hasApiKey: !!apiKey, hasAppId: !!appId });
     return !!(apiKey && appId);
   } catch (e) {

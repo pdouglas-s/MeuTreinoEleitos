@@ -12,16 +12,21 @@ import Constants from 'expo-constants';
 // Valores sensíveis devem sempre vir de variáveis de ambiente.
 const projectIdFromServiceAccount = 'meu-treino-eleitos'; // extraído de meu-treino-eleitos-firebase-adminsdk-*.json
 
-// Pegar variáveis do expo-constants (funciona em Web, iOS e Android)
-const extra = Constants.expoConfig?.extra || {};
+function readPublicEnv(name) {
+  const extraValue = Constants.expoConfig?.extra?.[name];
+  const envValue = process?.env?.[name];
+  return extraValue || envValue || '';
+}
+
+const projectId = readPublicEnv('EXPO_PUBLIC_FIREBASE_PROJECT_ID') || projectIdFromServiceAccount;
 
 const firebaseConfig = {
-  apiKey: extra.EXPO_PUBLIC_FIREBASE_API_KEY || '',
-  authDomain: extra.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || `${projectIdFromServiceAccount}.firebaseapp.com`,
-  projectId: extra.EXPO_PUBLIC_FIREBASE_PROJECT_ID || projectIdFromServiceAccount,
-  storageBucket: extra.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || `${projectIdFromServiceAccount}.appspot.com`,
-  messagingSenderId: extra.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: extra.EXPO_PUBLIC_FIREBASE_APP_ID || ''
+  apiKey: readPublicEnv('EXPO_PUBLIC_FIREBASE_API_KEY'),
+  authDomain: readPublicEnv('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN') || `${projectId}.firebaseapp.com`,
+  projectId,
+  storageBucket: readPublicEnv('EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET') || `${projectId}.appspot.com`,
+  messagingSenderId: readPublicEnv('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'),
+  appId: readPublicEnv('EXPO_PUBLIC_FIREBASE_APP_ID')
 };
 
 let app, auth, db, functions;
