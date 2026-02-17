@@ -59,7 +59,37 @@ npm run start
 npm test
 ```
 
-### 4. Habilitar exclusão completa de professor (Auth + Firestore)
+### 5. Publicar na Vercel (Web)
+
+O projeto está preparado para deploy como site estático com Expo Web.
+
+1. Crie um projeto na Vercel apontando para este repositório.
+2. Em **Project Settings → Environment Variables**, configure:
+
+```text
+EXPO_PUBLIC_FIREBASE_API_KEY
+EXPO_PUBLIC_FIREBASE_APP_ID
+EXPO_PUBLIC_FIREBASE_PROJECT_ID
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+```
+
+3. A build usa automaticamente:
+
+```text
+Build Command: npm run vercel-build
+Output Directory: web-build
+```
+
+4. Faça o deploy.
+
+Também é possível validar localmente antes de publicar:
+
+```bash
+npm run build:web
+```
+
+### 6. Habilitar exclusão completa de professor (Auth + Firestore)
 
 Para que o ADMIN exclua professor também do Firebase Authentication, é necessário deploy da Cloud Function:
 
