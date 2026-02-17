@@ -41,6 +41,7 @@ export default function ProfessorHome({ navigation }) {
   const isSystemAdmin = profile?.role === 'admin_sistema';
   const isAcademyAdmin = profile?.role === 'admin_academia';
   const isProfessor = profile?.role === 'professor';
+  const canBuildTreinoFicha = isProfessor || isAcademyAdmin;
   const canManageAcademyUsers = isAcademyAdmin;
   const canManageTreinos = isProfessor;
   const pageTitle = isAcademyAdmin ? 'Área do Admin da Academia' : 'Área do Professor';
@@ -411,7 +412,11 @@ export default function ProfessorHome({ navigation }) {
 
       setNomeTreino('');
       setAlunoSelecionadoTreino('');
-      await loadTreinosProfessor(professor_id);
+      if (isAcademyAdmin) {
+        await loadTreinosAcademia(profile?.academia_id);
+      } else {
+        await loadTreinosProfessor(professor_id);
+      }
       Alert.alert('Sucesso', alunoId ? 'Treino criado para o aluno selecionado' : 'Treino modelo criado (sem aluno)');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o treino.'));
@@ -489,7 +494,7 @@ export default function ProfessorHome({ navigation }) {
         </TouchableOpacity>
       </View>}
 
-      {!isSystemAdmin && (
+      {isAcademyAdmin && (
         <TouchableOpacity
           style={styles.reportCard}
           onPress={() => navigation.navigate('RelatorioEsforco')}
@@ -586,7 +591,7 @@ export default function ProfessorHome({ navigation }) {
         </View>
       )}
 
-      {!isSystemAdmin && canManageTreinos && <View style={styles.cardBlock}>
+      {!isSystemAdmin && canBuildTreinoFicha && <View style={styles.cardBlock}>
         <Text style={styles.blockTitle}>Montagem de Ficha</Text>
         <Text style={styles.blockHint}>Crie treino modelo ou vincule diretamente a um aluno cadastrado.</Text>
         <TextInput placeholder="Nome do treino" style={styles.input} value={nomeTreino} onChangeText={setNomeTreino} />

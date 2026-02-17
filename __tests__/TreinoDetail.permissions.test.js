@@ -115,4 +115,94 @@ describe('TreinoDetail permissions', () => {
     expect(listAllExercicios).toHaveBeenCalled();
     expect(listAllAlunos).toHaveBeenCalled();
   });
+
+  test('admin_academia visualiza ações de edição em treino da mesma academia criado por professor', async () => {
+    useAuth.mockReturnValue({
+      profile: { role: 'admin_academia', nome: 'Admin Academia', academia_id: 'acad-1' }
+    });
+
+    listItensByTreino.mockResolvedValue([
+      { id: 'item-1', exercicio_nome: 'Remada', series: 4, repeticoes: 10, carga: 30 }
+    ]);
+    listAllExercicios.mockResolvedValue([
+      { id: 'ex-1', nome: 'Remada', categoria: 'Costas', series_padrao: 4, repeticoes_padrao: 10 }
+    ]);
+    listAllAlunos.mockResolvedValue([
+      { id: 'aluno-1', nome: 'Aluno Um', email: 'aluno1@dominio.com' }
+    ]);
+
+    const navigation = { setOptions: jest.fn(), goBack: jest.fn() };
+    const route = {
+      params: {
+        treino: {
+          id: 'treino-1',
+          nome_treino: 'Treino Academia',
+          aluno_id: '',
+          professor_id: 'prof-1',
+          academia_id: 'acad-1',
+          is_padrao: false
+        }
+      }
+    };
+
+    const { getByText } = render(
+      React.createElement(TreinoDetail, { route, navigation })
+    );
+
+    await waitFor(() => {
+      expect(getByText('Remada')).toBeTruthy();
+    });
+
+    expect(getByText('Adicionar exercício')).toBeTruthy();
+    expect(getByText('Editar treino')).toBeTruthy();
+    expect(getByText('Associar a um aluno')).toBeTruthy();
+    expect(getByText('🗑️ Excluir Treino')).toBeTruthy();
+    expect(getByText('Remover')).toBeTruthy();
+
+    expect(listAllExercicios).toHaveBeenCalled();
+    expect(listAllAlunos).toHaveBeenCalled();
+  });
+
+  test('admin_academia de outra academia não visualiza ações de edição', async () => {
+    useAuth.mockReturnValue({
+      profile: { role: 'admin_academia', nome: 'Admin Academia 2', academia_id: 'acad-2' }
+    });
+
+    listItensByTreino.mockResolvedValue([
+      { id: 'item-1', exercicio_nome: 'Leg Press', series: 4, repeticoes: 12, carga: 80 }
+    ]);
+    listAllExercicios.mockResolvedValue([]);
+    listAllAlunos.mockResolvedValue([]);
+
+    const navigation = { setOptions: jest.fn(), goBack: jest.fn() };
+    const route = {
+      params: {
+        treino: {
+          id: 'treino-2',
+          nome_treino: 'Treino Outra Academia',
+          aluno_id: '',
+          professor_id: 'prof-1',
+          academia_id: 'acad-1',
+          is_padrao: false
+        }
+      }
+    };
+
+    const { getByText, queryByText } = render(
+      React.createElement(TreinoDetail, { route, navigation })
+    );
+
+    await waitFor(() => {
+      expect(getByText('Leg Press')).toBeTruthy();
+    });
+
+    expect(queryByText('Adicionar exercício')).toBeNull();
+    expect(queryByText('Editar treino')).toBeNull();
+    expect(queryByText('Associar a um aluno')).toBeNull();
+    expect(queryByText('🗑️ Excluir Treino')).toBeNull();
+    expect(queryByText('Remover')).toBeNull();
+
+    expect(listAllExercicios).toHaveBeenCalled();
+    expect(listAllAlunos).toHaveBeenCalled();
+  });
 });

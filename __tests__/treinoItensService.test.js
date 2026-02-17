@@ -60,6 +60,19 @@ describe('treinoItensService', () => {
     });
   });
 
+  test('addItemToTreino retorna permission-denied quando treino pertence a outra academia', async () => {
+    getDocs.mockResolvedValue({ docs: [] });
+    const permissionError = new Error('Missing or insufficient permissions.');
+    permissionError.code = 'permission-denied';
+    addDoc.mockRejectedValue(permissionError);
+
+    await expect(
+      itensService.addItemToTreino({ treino_id: 't-outra-academia', exercicio_nome: 'Leg Press' })
+    ).rejects.toMatchObject({
+      code: 'permission-denied'
+    });
+  });
+
   test('deleteItem propagates permission-denied error', async () => {
     doc.mockReturnValue({ id: 'i1' });
     const permissionError = new Error('Missing or insufficient permissions.');

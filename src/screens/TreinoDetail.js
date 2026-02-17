@@ -15,23 +15,17 @@ export default function TreinoDetail({ route, navigation }) {
   const { treino } = route.params;
   const { profile } = useAuth();
   const isProfessor = ['professor', 'admin_academia', 'admin_sistema'].includes(profile?.role);
+  const isAcademyStaff = ['professor', 'admin_academia'].includes(profile?.role);
   const currentUserId = auth.currentUser?.uid || profile?.id || profile?.uid || null;
   const isTreinoOwner = treino?.professor_id === currentUserId;
-  const isAcademiaTreinoAluno = String(treino?.academia_id || '').trim() === String(profile?.academia_id || '').trim()
-    && String(treino?.aluno_id || '').trim().length > 0
+  const isSameAcademiaTreino = String(treino?.academia_id || '').trim() === String(profile?.academia_id || '').trim();
+  const isAcademiaEditableTreino = isAcademyStaff
+    && isSameAcademiaTreino
     && treino?.is_padrao !== true;
-  const isAdminAcademiaTreinoAluno = profile?.role === 'admin_academia'
-    && String(treino?.academia_id || '').trim() === String(profile?.academia_id || '').trim()
-    && String(treino?.aluno_id || '').trim().length > 0
-    && treino?.is_padrao !== true;
-  const isProfessorAcademiaTreinoAluno = profile?.role === 'professor'
-    && isAcademiaTreinoAluno;
-  const canEditTreino = (profile?.role === 'professor' && isTreinoOwner)
-    || isProfessorAcademiaTreinoAluno
-    || isAdminAcademiaTreinoAluno
-    || (profile?.role === 'admin_sistema' && treino?.is_padrao === true);
-  const canManageItens = (profile?.role === 'professor' && (isTreinoOwner || isProfessorAcademiaTreinoAluno))
-    || isAdminAcademiaTreinoAluno;
+  const canEditTreino = isAcademiaEditableTreino
+    || (profile?.role === 'admin_sistema' && treino?.is_padrao === true)
+    || (profile?.role === 'professor' && isTreinoOwner && treino?.is_padrao !== true);
+  const canManageItens = isAcademiaEditableTreino;
   const [itens, setItens] = useState([]);
   const [loading, setLoading] = useState(true);
   const originalTreinoRef = useRef({
@@ -425,7 +419,7 @@ export default function TreinoDetail({ route, navigation }) {
               <Text style={{ fontSize: 16, color: theme.colors.text }}>{item.exercicio_nome}</Text>
               <Text style={{ color: theme.colors.muted }}>{`${item.series || '-'} x ${item.repeticoes || '-'} • ${item.carga || '-'}kg`}</Text>
             </View>
-            {isProfessor && (
+            {canManageItens && (
               <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
                 <Text style={{ color: '#dc2626' }}>Remover</Text>
               </TouchableOpacity>
@@ -434,7 +428,7 @@ export default function TreinoDetail({ route, navigation }) {
         ))}
       </View>
 
-      {isProfessor && (
+      {canManageItens && (
         <View style={styles.cardBlock}>
         <Text style={styles.section}>Adicionar exercício</Text>
         
@@ -476,7 +470,7 @@ export default function TreinoDetail({ route, navigation }) {
         </View>
       )}
 
-      {isProfessor && (
+      {canEditTreino && (
         <View style={styles.cardBlock}>
           <Text style={styles.section}>Editar treino</Text>
           <TextInput placeholder="Nome do treino" style={styles.input} value={editNome} onChangeText={setEditNome} />
@@ -511,7 +505,7 @@ export default function TreinoDetail({ route, navigation }) {
         </View>
       )}
 
-      {isProfessor && (
+      {canEditTreino && (
         <TouchableOpacity style={styles.deleteButton} onPress={confirmDeleteTreino}>
           <Text style={styles.deleteButtonText}>
             {temAlunoAssociado ? '🗑️ Excluir associação' : '🗑️ Excluir Treino'}

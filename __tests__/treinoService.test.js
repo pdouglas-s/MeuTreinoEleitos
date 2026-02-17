@@ -64,6 +64,23 @@ describe('treinoService', () => {
     });
   });
 
+  test('updateTreino retorna permission-denied quando usuário tenta editar treino de outra academia', async () => {
+    doc.mockReturnValue({ id: 't-outra-academia' });
+    getDoc.mockResolvedValue({
+      exists: () => true,
+      data: () => ({ nome_treino: 'Treino bloqueado', is_padrao: false, academia_id: 'acad_outra' })
+    });
+    const permissionError = new Error('Missing or insufficient permissions.');
+    permissionError.code = 'permission-denied';
+    updateDoc.mockRejectedValue(permissionError);
+
+    await expect(
+      treinoService.updateTreino('t-outra-academia', { nome_treino: 'Tentativa de edição' })
+    ).rejects.toMatchObject({
+      code: 'permission-denied'
+    });
+  });
+
   test('deleteTreino propagates permission-denied error', async () => {
     doc.mockReturnValue({ id: 't1' });
     getDoc.mockResolvedValue({ exists: () => true, data: () => ({ bloqueado_exclusao: false }) });

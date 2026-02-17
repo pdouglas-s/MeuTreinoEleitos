@@ -174,7 +174,7 @@ service cloud.firestore {
 
       allow create: if request.auth != null && (
         (
-          isProfessor()
+          isAcademyStaff()
           && request.resource.data.professor_id == request.auth.uid
           && isSameAcademia(request.resource.data.academia_id)
           && request.resource.data.is_padrao != true
@@ -185,64 +185,18 @@ service cloud.firestore {
         )
       );
 
-      allow update: if request.auth != null && (
-        (
-          isSystemAdmin()
-          && resource.data.is_padrao == true
-        )
-        || (
-          isAcademyAdmin()
-          && isSameAcademia(resource.data.academia_id)
-          && resource.data.aluno_id is string
-          && resource.data.aluno_id != ''
-          && resource.data.is_padrao != true
-          && resource.data.bloqueado_exclusao != true
-        )
-        || (
-          isProfessor()
-          && isSameAcademia(resource.data.academia_id)
-          && resource.data.aluno_id is string
-          && resource.data.aluno_id != ''
-          && resource.data.is_padrao != true
-          && resource.data.bloqueado_exclusao != true
-        )
-        || (
-          isProfessor()
-          && resource.data.professor_id == request.auth.uid
-          && isSameAcademia(resource.data.academia_id)
-          && resource.data.bloqueado_exclusao != true
-        )
-        || (
-          isProfessor()
-          && resource.data.is_padrao == true
-          && request.resource.data.is_padrao == false
-          && request.resource.data.origem_padrao == true
-          && request.resource.data.bloqueado_exclusao == true
-          && request.resource.data.professor_id == request.auth.uid
-          && isSameAcademia(request.resource.data.academia_id)
-        )
-      );
+      allow update: if request.auth != null
+        && isAcademyStaff()
+        && isSameAcademia(resource.data.academia_id)
+        && resource.data.is_padrao != true;
 
       allow delete: if request.auth != null
+        && (!(resource.data.aluno_id is string && resource.data.aluno_id != ''))
+        && (resource.data.bloqueado_exclusao != true)
         && (
-          !(resource.data.aluno_id is string && resource.data.aluno_id != '')
-        )
-        && (
-          resource.data.bloqueado_exclusao != true
-        )
-        && (
-          (isSystemAdmin() && resource.data.is_padrao == true)
-          || (
-            isAcademyAdmin()
-            && isSameAcademia(resource.data.academia_id)
-            && resource.data.is_padrao != true
-          )
-          || (
-            isProfessor()
-            && resource.data.professor_id == request.auth.uid
-            && isSameAcademia(resource.data.academia_id)
-            && resource.data.is_padrao != true
-          )
+          isAcademyStaff()
+          && isSameAcademia(resource.data.academia_id)
+          && resource.data.is_padrao != true
         );
     }
 
@@ -251,47 +205,19 @@ service cloud.firestore {
         && resource.data.treino_id != null
         && canReadTreinoData(treinoDocById(resource.data.treino_id));
       allow create: if request.auth != null
-        && (
-          (
-            isProfessor()
-            && treinoDocById(request.resource.data.treino_id).aluno_id is string
-            && treinoDocById(request.resource.data.treino_id).aluno_id != ''
-            && treinoDocById(request.resource.data.treino_id).is_padrao != true
-          )
-          || (
-            isProfessor()
-            && treinoDocById(request.resource.data.treino_id).professor_id == request.auth.uid
-          )
-          || (
-            isAcademyAdmin()
-            && treinoDocById(request.resource.data.treino_id).aluno_id is string
-            && treinoDocById(request.resource.data.treino_id).aluno_id != ''
-            && treinoDocById(request.resource.data.treino_id).is_padrao != true
-          )
-        )
         && request.resource.data.treino_id != null
-        && isSameAcademia(treinoDocById(request.resource.data.treino_id).academia_id);
-      allow update, delete: if request.auth != null
+        && isSameAcademia(treinoDocById(request.resource.data.treino_id).academia_id)
         && (
-          (
-            isProfessor()
-            && treinoDocById(resource.data.treino_id).aluno_id is string
-            && treinoDocById(resource.data.treino_id).aluno_id != ''
-            && treinoDocById(resource.data.treino_id).is_padrao != true
-          )
-          || (
-            isProfessor()
-            && treinoDocById(resource.data.treino_id).professor_id == request.auth.uid
-          )
-          || (
-            isAcademyAdmin()
-            && treinoDocById(resource.data.treino_id).aluno_id is string
-            && treinoDocById(resource.data.treino_id).aluno_id != ''
-            && treinoDocById(resource.data.treino_id).is_padrao != true
-          )
-        )
+          isAcademyStaff()
+          && treinoDocById(request.resource.data.treino_id).is_padrao != true
+        );
+      allow update, delete: if request.auth != null
         && resource.data.treino_id != null
-        && isSameAcademia(treinoDocById(resource.data.treino_id).academia_id);
+        && isSameAcademia(treinoDocById(resource.data.treino_id).academia_id)
+        && (
+          isAcademyStaff()
+          && treinoDocById(resource.data.treino_id).is_padrao != true
+        );
     }
 
     match /avaliacoes/{docId} {
