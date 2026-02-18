@@ -1,5 +1,5 @@
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, arrayUnion, documentId } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, arrayUnion, documentId, getDoc } from 'firebase/firestore';
 
 const exerciciosCol = collection(db, 'exercicios');
 
@@ -99,9 +99,25 @@ export async function personalizarExercicioPadraoParaAcademia({ exercicioPadrao,
   }
 
   const refPadrao = doc(db, 'exercicios', exercicioPadrao.id);
-  await updateDoc(refPadrao, {
-    oculto_para_academias: arrayUnion(academiaIdNormalizado)
-  });
+  let ocultacaoAplicada = true;
+
+  try {
+    await updateDoc(refPadrao, {
+      oculto_para_academias: arrayUnion(academiaIdNormalizado)
+    });
+  } catch (err) {
+    const code = String(err?.code || '').toLowerCase();
+    const message = String(err?.message || '').toLowerCase();
+    const isPermissionError = code.includes('permission-denied') || message.includes('insufficient permissions');
+
+    if (!isPermissionError) {
+      throw err;
+    }
+
+    ocultacaoAplicada = false;
+  }
+
+  return { ocultacaoAplicada };
 }
 
 export async function ocultarExercicioPadraoParaAcademia({ exercicioPadraoId, academiaId }) {
@@ -116,6 +132,17 @@ export async function ocultarExercicioPadraoParaAcademia({ exercicioPadraoId, ac
   await updateDoc(refPadrao, {
     oculto_para_academias: arrayUnion(academiaIdNormalizado)
   });
+
+  const snapAtualizado = await getDoc(refPadrao);
+  const ocultoParaAcademias = Array.isArray(snapAtualizado.data()?.oculto_para_academias)
+    ? snapAtualizado.data().oculto_para_academias.map((item) => normalizeAcademiaId(item)).filter(Boolean)
+    : [];
+
+  if (!ocultoParaAcademias.includes(academiaIdNormalizado)) {
+    throw new Error('A ocultação do exercício padrão não foi persistida para a academia.');
+  }
+
+  return { ocultacaoAplicada: true };
 }
 
 // Deletar exercício

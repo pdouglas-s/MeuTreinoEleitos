@@ -103,12 +103,23 @@ export default function GerenciarExercicios({ navigation }) {
     try {
       if (isAcademyAdmin && exercicio?.is_padrao === true) {
         const academiaIdAtual = String(profile?.academia_id || '').trim();
-        await ocultarExercicioPadraoParaAcademia({
-          exercicioPadraoId: exercicio?.id,
-          academiaId: academiaIdAtual
-        });
-        Alert.alert('Sucesso', 'Exercício padrão ocultado para esta academia.');
-        await loadExercicios();
+        try {
+          await ocultarExercicioPadraoParaAcademia({
+            exercicioPadraoId: exercicio?.id,
+            academiaId: academiaIdAtual
+          });
+
+          setExercicios((prev) => prev.filter((item) => item?.id !== exercicio?.id));
+          Alert.alert('Sucesso', 'Exercício padrão ocultado para esta academia.');
+          await loadExercicios();
+        } catch (err) {
+          const errorCode = String(err?.code || 'desconhecido').trim();
+          const errorMessage = getAuthErrorMessage(err, 'Não foi possível ocultar o exercício padrão para esta academia.');
+          Alert.alert(
+            'Erro ao ocultar exercício padrão',
+            `${errorMessage}\n\ncode: ${errorCode}\nacademia_id: ${academiaIdAtual || 'não informado'}`
+          );
+        }
         return;
       }
 
@@ -204,13 +215,18 @@ export default function GerenciarExercicios({ navigation }) {
       };
 
       if (exercicio?.is_padrao === true && academiaIdAtual) {
-        await personalizarExercicioPadraoParaAcademia({
+        const { ocultacaoAplicada } = await personalizarExercicioPadraoParaAcademia({
           exercicioPadrao: exercicio,
           payload,
           academiaId: academiaIdAtual,
           criadoPor: auth.currentUser?.uid
         });
-        Alert.alert('Sucesso', 'Exercício removido do padrão e atualizado para esta academia.');
+        Alert.alert(
+          'Sucesso',
+          ocultacaoAplicada
+            ? 'Exercício removido do padrão e atualizado para esta academia.'
+            : 'Exercício atualizado para esta academia.'
+        );
         setFiltroAtivo('academia');
       } else if (exercicio?.is_padrao === true && isSystemAdmin) {
         await updateExercicio(exercicio.id, sistemaPayload);
@@ -499,6 +515,7 @@ export default function GerenciarExercicios({ navigation }) {
         renderItem={({ item }) => (
           (() => {
             const showDualIconsPadraoAcademia = isAcademyAdmin && item?.is_padrao === true;
+            const showEditAction = showDualIconsPadraoAcademia || (isAcademyAdmin && isExercicioAcademia(item));
             const detalhesExercicio = formatarDetalhesExercicio(item);
             return (
           <TouchableOpacity
@@ -559,7 +576,7 @@ export default function GerenciarExercicios({ navigation }) {
                 </>
               ) : (
                 <>
-                  {showDualIconsPadraoAcademia && (
+                  {showEditAction && (
                     <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}>
                       <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
                     </TouchableOpacity>

@@ -253,12 +253,27 @@ service cloud.firestore {
         )
       );
 
-      allow update, delete: if request.auth != null && (
+      allow update: if request.auth != null && (
         isSystemAdmin()
         || (
           isAcademyStaff()
           &&
           resource.data.is_padrao != true
+          && exercicioDataDaMinhaAcademia(resource.data)
+        )
+        || (
+          isAcademyStaff()
+          && resource.data.is_padrao == true
+          && myAcademiaId() != null
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['oculto_para_academias'])
+        )
+      );
+
+      allow delete: if request.auth != null && (
+        isSystemAdmin()
+        || (
+          isAcademyStaff()
+          && resource.data.is_padrao != true
           && exercicioDataDaMinhaAcademia(resource.data)
         )
       );
