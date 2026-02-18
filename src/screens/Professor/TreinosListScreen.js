@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableWithoutFeedback } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import theme from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -96,7 +96,7 @@ export default function TreinosListScreen({ navigation }) {
     try {
       await deleteTreino(item.id);
       setTreinos((prev) => prev.filter((treino) => treino.id !== item.id));
-      Alert.alert('Sucesso', 'Treino excluído com sucesso');
+      Alert.alert('Sucesso', 'Treino excluído com sucesso.');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o treino.'));
     }
@@ -113,6 +113,11 @@ export default function TreinosListScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <TouchableWithoutFeedback onPress={() => navigation.goBack()}>
+        <View style={styles.backBtn}>
+          <Text style={styles.backBtnText}>← Voltar ao painel</Text>
+        </View>
+      </TouchableWithoutFeedback>
       <Text style={styles.title}>Treinos</Text>
       <TextInput
         placeholder="Buscar por treino ou aluno"
@@ -125,20 +130,27 @@ export default function TreinosListScreen({ navigation }) {
       <FlatList
         data={treinosFiltrados}
         keyExtractor={(item) => item.id}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <View style={styles.itemRow}>
-            <TouchableOpacity style={styles.itemContent} onPress={() => handleOpenTreino(item)} activeOpacity={0.8}>
-              <Text style={styles.itemNome}>{item.nome_treino}</Text>
-              <Text style={styles.itemSub}>
-                {item.aluno_id && alunosMap[item.aluno_id]
-                  ? `👤 ${alunosMap[item.aluno_id]}`
-                  : '📋 Treino modelo (sem aluno)'}
-              </Text>
-            </TouchableOpacity>
+            <TouchableWithoutFeedback onPress={() => handleOpenTreino(item)}>
+              <View style={styles.itemContent}>
+                <Text style={styles.itemNome}>{item.nome_treino}</Text>
+                <Text style={styles.itemSub}>
+                  {item.aluno_id && alunosMap[item.aluno_id]
+                    ? `👤 ${alunosMap[item.aluno_id]}`
+                    : '📋 Treino modelo (sem aluno)'}
+                </Text>
+              </View>
+            </TouchableWithoutFeedback>
             {!String(item?.aluno_id || '').trim() && (
-              <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteTreino(item)}>
-                <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
-              </TouchableOpacity>
+              <TouchableWithoutFeedback onPress={() => handleDeleteTreino(item)}>
+                <View style={styles.deleteBtn}>
+                  <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
+                </View>
+              </TouchableWithoutFeedback>
             )}
           </View>
         )}
@@ -171,6 +183,21 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: 10
   },
+  backBtn: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.card,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10
+  },
+  backBtnText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600'
+  },
   input: {
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -178,6 +205,12 @@ const styles = StyleSheet.create({
     padding: theme.spacing(1.5),
     marginBottom: theme.spacing(1.5),
     backgroundColor: theme.colors.card
+  },
+  list: {
+    flex: 1
+  },
+  listContent: {
+    paddingBottom: theme.spacing(3)
   },
   itemRow: {
     borderWidth: 1,

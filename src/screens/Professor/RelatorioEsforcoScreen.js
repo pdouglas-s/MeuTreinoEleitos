@@ -4,6 +4,7 @@ import theme from '../../theme';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
+import { getAuthErrorMessage } from '../../utils/authErrors';
 import { gerarRelatorioEsforcoPorCategoria } from '../../services/notificacoesService';
 import CardMedia from '../../components/CardMedia';
 
@@ -94,8 +95,7 @@ export default function RelatorioEsforcoScreen() {
       });
       setRelatorio(dados);
     } catch (err) {
-      console.error('Erro ao carregar relatório de esforço:', err);
-      Alert.alert('Erro', 'Não foi possível carregar o relatório estatístico.');
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar o relatório estatístico.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -124,8 +124,7 @@ export default function RelatorioEsforcoScreen() {
         title: 'Relatório de esforço por categoria'
       });
     } catch (err) {
-      console.error('Erro ao compartilhar resumo:', err);
-      Alert.alert('Erro', 'Não foi possível compartilhar o resumo agora.');
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível compartilhar o resumo agora.'));
     }
   }
 

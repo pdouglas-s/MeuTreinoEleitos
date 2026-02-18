@@ -45,6 +45,7 @@ export default function TreinoDetail({ route, navigation }) {
   const originalItensRef = useRef(null);
 
   // campos para novo item
+  const [exercicioSelecionadoId, setExercicioSelecionadoId] = useState(null);
   const [exNome, setExNome] = useState('');
   const [series, setSeries] = useState('');
   const [reps, setReps] = useState('');
@@ -73,12 +74,10 @@ export default function TreinoDetail({ route, navigation }) {
 
   async function loadExercicios() {
     try {
-      const all = await listAllExercicios();
+      const all = await listAllExercicios({ academiaId: profile?.academia_id });
       setTodosExercicios(all);
       setExerciciosEncontrados(all);
-    } catch (err) {
-      console.warn('Erro ao carregar exercícios', err.message);
-    }
+    } catch (err) {}
   }
 
   async function loadAlunos() {
@@ -86,9 +85,7 @@ export default function TreinoDetail({ route, navigation }) {
       const list = await listAllAlunos();
       list.sort((a, b) => a.nome.localeCompare(b.nome));
       setAlunos(list);
-    } catch (err) {
-      console.warn('Erro ao carregar alunos', err.message);
-    }
+    } catch (err) {}
   }
 
   async function loadItens() {
@@ -107,7 +104,6 @@ export default function TreinoDetail({ route, navigation }) {
         }));
       }
     } catch (err) {
-      console.warn('Erro ao carregar itens', err.message);
     } finally {
       setLoading(false);
     }
@@ -161,9 +157,7 @@ export default function TreinoDetail({ route, navigation }) {
         itens_incluidos: alteracoes.itensIncluidos || [],
         itens_excluidos: alteracoes.itensExcluidos || []
       });
-    } catch (notifyErr) {
-      console.warn('Falha ao enviar notificação de treino atualizado:', notifyErr?.message || notifyErr);
-    }
+    } catch (notifyErr) {}
   }
 
   async function restoreOriginalTreinoSnapshot() {
@@ -248,6 +242,7 @@ export default function TreinoDetail({ route, navigation }) {
 
       await addItemToTreino({
         treino_id: treino.id,
+        exercicio_id: exercicioSelecionadoId || undefined,
         exercicio_nome: exNome,
         series: seriesValue ? Number(seriesValue) : null,
         repeticoes: repeticoesValue || null,
@@ -256,9 +251,10 @@ export default function TreinoDetail({ route, navigation }) {
           : null
       });
       await notificarTreinoAtualizado(treino.id, editNome || treino.nome_treino || 'Treino');
+      setExercicioSelecionadoId(null);
       setExNome(''); setSeries(''); setReps(''); setCarga('');
       loadItens();
-      Alert.alert('Sucesso', 'Item adicionado');
+      Alert.alert('Sucesso', 'Item adicionado com sucesso.');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível adicionar o exercício.'));
     }
@@ -270,7 +266,7 @@ export default function TreinoDetail({ route, navigation }) {
       await deleteItem(itemId);
       await notificarTreinoAtualizado(treino.id, editNome || treino.nome_treino || 'Treino');
       loadItens();
-      Alert.alert('Sucesso', 'Item removido');
+      Alert.alert('Sucesso', 'Item removido com sucesso.');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível remover o exercício.'));
     }
@@ -328,7 +324,7 @@ export default function TreinoDetail({ route, navigation }) {
       await notificarTreinoAtualizado(treino.id, editNome || treino.nome_treino || 'Treino');
       cancelEditItem();
       await loadItens();
-      Alert.alert('Sucesso', 'Exercício atualizado');
+      Alert.alert('Sucesso', 'Exercício atualizado com sucesso.');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível editar o exercício.'));
     }
@@ -336,7 +332,7 @@ export default function TreinoDetail({ route, navigation }) {
 
   async function confirmCreateNovoVinculo() {
     const mensagem = 'Ao continuar, será criado um novo vínculo para o aluno selecionado e o vínculo anterior será preservado. Deseja continuar?';
-    return Alert.confirm('Confirmar novo vínculo', mensagem, {
+    return Alert.confirm('Confirmar criação de vínculo', mensagem, {
       confirmText: 'Criar vínculo'
     });
   }
@@ -357,11 +353,9 @@ export default function TreinoDetail({ route, navigation }) {
         aluno_nome: alunos.find((item) => item.id === alunoSelecionado)?.nome || null,
         academia_id: treino?.academia_id || profile?.academia_id || null
       });
-    } catch (notifyErr) {
-      console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
-    }
+    } catch (notifyErr) {}
 
-    Alert.alert('Sucesso', 'Novo vínculo criado para o aluno selecionado sem alterar o vínculo anterior');
+    Alert.alert('Sucesso', 'Novo vínculo criado para o aluno selecionado sem alterar o vínculo anterior.');
     navigation.goBack();
   }
 
@@ -402,9 +396,7 @@ export default function TreinoDetail({ route, navigation }) {
             aluno_nome: alunos.find((item) => item.id === alunoSelecionado)?.nome || null,
             academia_id: treino?.academia_id || profile?.academia_id || null
           });
-        } catch (notifyErr) {
-          console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
-        }
+        } catch (notifyErr) {}
       } else if (alunoDestinoId) {
         await notificarTreinoAtualizado(treino.id, editNome, alteracoesItens);
       }
@@ -434,7 +426,7 @@ export default function TreinoDetail({ route, navigation }) {
         await updateTreino(treino.id, { aluno_id: '' });
         treino.aluno_id = '';
         setAlunoSelecionado('');
-        Alert.alert('Sucesso', 'Associação entre treino e aluno removida');
+        Alert.alert('Sucesso', 'Associação entre treino e aluno removida com sucesso.');
         navigation.goBack();
         return;
       }
@@ -452,9 +444,7 @@ export default function TreinoDetail({ route, navigation }) {
             professor_nome: profile?.nome || 'Professor',
             academia_id: treinoExcluido.academia_id || treino?.academia_id || profile?.academia_id || null
           });
-        } catch (notifyErr) {
-          console.warn('Falha ao enviar notificação de treino excluído:', notifyErr?.message || notifyErr);
-        }
+        } catch (notifyErr) {}
       }
 
       try {
@@ -465,11 +455,9 @@ export default function TreinoDetail({ route, navigation }) {
           aluno_nome: alunoNome,
           academia_id: treinoExcluido.academia_id || treino?.academia_id || profile?.academia_id || null
         });
-      } catch (notifyErr) {
-        console.warn('Falha ao enviar notificação de exclusão para academia:', notifyErr?.message || notifyErr);
-      }
+      } catch (notifyErr) {}
 
-      Alert.alert('Sucesso', 'Treino excluído');
+      Alert.alert('Sucesso', 'Treino excluído com sucesso.');
       navigation.goBack();
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o treino.'));
@@ -482,9 +470,9 @@ export default function TreinoDetail({ route, navigation }) {
       ? (alunos.find((item) => item.id === treino.aluno_id)?.nome || 'aluno associado')
       : '';
     const confirmado = await Alert.confirm(
-      'Confirmar exclusão',
+      possuiAlunoVinculado ? 'Confirmar remoção de associação' : 'Confirmar exclusão',
       possuiAlunoVinculado
-        ? `Deseja remover a associação do treino "${treino.nome_treino}" com ${alunoNomeAssociado}?`
+        ? `Deseja realmente remover a associação do treino "${treino.nome_treino}" com ${alunoNomeAssociado}?`
         : `Deseja realmente excluir o treino "${treino.nome_treino}"? Todos os exercícios serão perdidos.`,
       { confirmText: possuiAlunoVinculado ? 'Remover associação' : 'Excluir', destructive: true }
     );
@@ -517,6 +505,7 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   function selecionarExercicio(exercicio) {
+    setExercicioSelecionadoId(exercicio?.id || null);
     setExNome(exercicio.nome);
     setSeries(String(exercicio.series_padrao || ''));
     setReps(String(exercicio.repeticoes_padrao || ''));
@@ -542,6 +531,28 @@ export default function TreinoDetail({ route, navigation }) {
     if (cargaText) {
       const cargaNumero = Number(cargaText.replace(',', '.'));
       partes.push(Number.isNaN(cargaNumero) ? cargaText : `${cargaText}kg`);
+    }
+
+    return partes.join(' • ');
+  }
+
+  function formatExercicioBancoResumo(exercicio) {
+    const categoria = String(exercicio?.categoria || '').trim();
+    const seriesPadrao = exercicio?.series_padrao;
+    const repeticoesPadrao = exercicio?.repeticoes_padrao;
+
+    const temSeries = seriesPadrao !== null && seriesPadrao !== undefined && String(seriesPadrao).trim() !== '';
+    const temRepeticoes = repeticoesPadrao !== null && repeticoesPadrao !== undefined && String(repeticoesPadrao).trim() !== '';
+
+    const partes = [];
+    if (categoria) partes.push(categoria);
+
+    if (temSeries && temRepeticoes) {
+      partes.push(`${seriesPadrao}x${repeticoesPadrao}`);
+    } else if (temSeries) {
+      partes.push(`${seriesPadrao} séries`);
+    } else if (temRepeticoes) {
+      partes.push(`${repeticoesPadrao} repetições`);
     }
 
     return partes.join(' • ');
@@ -646,23 +657,36 @@ export default function TreinoDetail({ route, navigation }) {
               onChangeText={buscarExercicios} 
             />
             <ScrollView style={styles.listaExercicios} nestedScrollEnabled>
-              {exerciciosEncontrados.map((ex) => (
-                <TouchableOpacity 
-                  key={ex.id} 
-                  style={styles.exercicioItem} 
-                  onPress={() => selecionarExercicio(ex)}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: '500' }}>{ex.nome}</Text>
-                  <Text style={{ fontSize: 12, color: '#666' }}>
-                    {ex.categoria} • {ex.series_padrao}x{ex.repeticoes_padrao}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {exerciciosEncontrados.map((ex) => {
+                const resumoBanco = formatExercicioBancoResumo(ex);
+                return (
+                  <TouchableOpacity 
+                    key={ex.id} 
+                    style={styles.exercicioItem} 
+                    onPress={() => selecionarExercicio(ex)}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: '500' }}>{ex.nome}</Text>
+                    {!!resumoBanco && (
+                      <Text style={{ fontSize: 12, color: '#666' }}>
+                        {resumoBanco}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
         )}
 
-        <TextInput placeholder="Nome do exercício" style={styles.input} value={exNome} onChangeText={setExNome} />
+        <TextInput
+          placeholder="Nome do exercício"
+          style={styles.input}
+          value={exNome}
+          onChangeText={(value) => {
+            setExNome(value);
+            setExercicioSelecionadoId(null);
+          }}
+        />
         <TextInput placeholder="Séries" style={styles.input} value={series} onChangeText={setSeries} keyboardType="numeric" />
         <TextInput placeholder="Repetições" style={styles.input} value={reps} onChangeText={setReps} />
         <TextInput placeholder="Carga (kg)" style={styles.input} value={carga} onChangeText={setCarga} keyboardType="numeric" />
@@ -709,7 +733,7 @@ export default function TreinoDetail({ route, navigation }) {
       {canEditTreino && (
         <TouchableOpacity style={styles.deleteButton} onPress={confirmDeleteTreino}>
           <Text style={styles.deleteButtonText}>
-            {temAlunoAssociado ? '🗑️ Excluir associação' : '🗑️ Excluir Treino'}
+            {temAlunoAssociado ? '🗑️ Excluir associação' : '🗑️ Excluir treino'}
           </Text>
         </TouchableOpacity>
       )}

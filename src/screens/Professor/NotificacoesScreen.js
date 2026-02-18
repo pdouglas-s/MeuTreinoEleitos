@@ -6,6 +6,7 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { listarNotificacoesProfessor, listarNotificacoesAluno, listarNotificacoesAcademia, marcarComoLida, marcarTodasComoLidas, marcarTodasComoLidasAluno, marcarTodasComoLidasAcademia } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
+import { getAuthErrorMessage } from '../../utils/authErrors';
 import { auth, db } from '../../firebase/config';
 import CardMedia from '../../components/CardMedia';
 
@@ -70,7 +71,6 @@ export default function NotificacoesScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }, (err) => {
-      console.error('Erro ao escutar notificações:', err);
       setLoading(false);
       setRefreshing(false);
     });
@@ -88,8 +88,7 @@ export default function NotificacoesScreen({ navigation }) {
           : await listarNotificacoesAluno(userId));
       setNotificacoes(notifs);
     } catch (err) {
-      console.error('Erro ao carregar notificações:', err);
-      Alert.alert('Erro', 'Não foi possível carregar as notificações');
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar as notificações.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -105,7 +104,7 @@ export default function NotificacoesScreen({ navigation }) {
         prev.map(n => n.id === notifId ? { ...n, lida: true } : n)
       );
     } catch (err) {
-      console.error('Erro ao marcar como lida:', err);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível marcar a notificação como lida.'));
     }
   }
 
@@ -116,9 +115,9 @@ export default function NotificacoesScreen({ navigation }) {
       else if (isProfessor) await marcarTodasComoLidas(userId);
       else await marcarTodasComoLidasAluno(userId);
       setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })));
-      Alert.alert('Sucesso', 'Todas notificações marcadas como lidas');
+      Alert.alert('Sucesso', 'Todas as notificações foram marcadas como lidas.');
     } catch (err) {
-      Alert.alert('Erro', 'Não foi possível marcar todas como lidas');
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível marcar todas as notificações como lidas.'));
     }
   }
 

@@ -59,7 +59,7 @@ npm run start
 npm test
 ```
 
-### 5. Publicar na Vercel (Web)
+### 4. Publicar na Vercel (Web)
 
 O projeto está preparado para deploy como site estático com Expo Web.
 
@@ -89,7 +89,7 @@ Também é possível validar localmente antes de publicar:
 npm run build:web
 ```
 
-### 6. Habilitar exclusão completa de professor (Auth + Firestore)
+### 5. Habilitar exclusão completa de professor (Auth + Firestore)
 
 Para que o ADMIN exclua professor também do Firebase Authentication, é necessário deploy da Cloud Function:
 
@@ -102,7 +102,9 @@ firebase deploy --only functions
 
 Função publicada: `deleteProfessorCompletely` (região `us-central1`).
 
-3. Inicie o projeto:
+### 6. Iniciar o projeto
+
+Inicie o projeto:
 
 ```bash
 npm run start
@@ -112,3 +114,11 @@ Observações importantes
 
 - Siga o esquema de dados definido em `instructions.md`.
 - A implementação aqui é um ponto de partida com telas básicas e serviços; complete a lógica de negócio e regras de segurança do Firestore antes de usar em produção.
+
+## 🤝 Contribuição
+
+- Pull requests usam o template em `.github/pull_request_template.md`.
+- Antes de abrir PR, valide o checklist de UX writing para confirmações e ações destrutivas.
+- Referências de padrão:
+  - `docs/COMPONENTS.md` (convenção aplicada em componentes/telas)
+  - `docs/DESIGN.md` (guideline de UX writing)

@@ -24,7 +24,6 @@ export default function LoginScreen({ navigation }) {
           const exists = await hasSystemAdmin();
           if (active) setShowRegister(!exists);
         } catch (error) {
-          console.warn('Erro ao verificar cadastro público no login:', error?.message || error);
           if (active) setShowRegister(false);
         }
       }
@@ -52,8 +51,7 @@ export default function LoginScreen({ navigation }) {
       else navigation.replace('AlunoHome');
     } catch (err) {
       const message = getAuthErrorMessage(err, 'Não foi possível fazer login. Tente novamente.');
-      console.error('Falha no login:', { code: err?.code, message: err?.message, raw: err });
-      Alert.alert('Falha no login', message);
+      Alert.alert('Erro', message);
     }
   }
 

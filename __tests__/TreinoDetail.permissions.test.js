@@ -69,7 +69,7 @@ describe('TreinoDetail permissions', () => {
     expect(queryByText('Adicionar exercício')).toBeNull();
     expect(queryByText('Editar treino')).toBeNull();
     expect(queryByText('Associar a um aluno')).toBeNull();
-    expect(queryByText('🗑️ Excluir Treino')).toBeNull();
+    expect(queryByText('🗑️ Excluir treino')).toBeNull();
     expect(queryByText('Remover')).toBeNull();
 
     expect(listAllExercicios).not.toHaveBeenCalled();
@@ -109,7 +109,7 @@ describe('TreinoDetail permissions', () => {
     expect(getByText('Adicionar exercício')).toBeTruthy();
     expect(getByText('Editar treino')).toBeTruthy();
     expect(getByText('Associar a um aluno')).toBeTruthy();
-    expect(getByText('🗑️ Excluir Treino')).toBeTruthy();
+    expect(getByText('🗑️ Excluir treino')).toBeTruthy();
     expect(getByText('Remover')).toBeTruthy();
 
     expect(listAllExercicios).toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe('TreinoDetail permissions', () => {
     expect(getByText('Adicionar exercício')).toBeTruthy();
     expect(getByText('Editar treino')).toBeTruthy();
     expect(getByText('Associar a um aluno')).toBeTruthy();
-    expect(getByText('🗑️ Excluir Treino')).toBeTruthy();
+    expect(getByText('🗑️ Excluir treino')).toBeTruthy();
     expect(getByText('Remover')).toBeTruthy();
 
     expect(listAllExercicios).toHaveBeenCalled();
@@ -199,7 +199,7 @@ describe('TreinoDetail permissions', () => {
     expect(queryByText('Adicionar exercício')).toBeNull();
     expect(queryByText('Editar treino')).toBeNull();
     expect(queryByText('Associar a um aluno')).toBeNull();
-    expect(queryByText('🗑️ Excluir Treino')).toBeNull();
+    expect(queryByText('🗑️ Excluir treino')).toBeNull();
     expect(queryByText('Remover')).toBeNull();
 
     expect(listAllExercicios).toHaveBeenCalled();

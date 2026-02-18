@@ -1,7 +1,24 @@
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, arrayUnion, documentId } from 'firebase/firestore';
 
 const exerciciosCol = collection(db, 'exercicios');
+
+function normalizeAcademiaId(academiaId) {
+  return String(academiaId || '').trim();
+}
+
+function isExercicioPadraoVisivelParaAcademia(exercicio, academiaId) {
+  if (exercicio?.is_padrao !== true) return true;
+
+  const academiaIdNormalizado = normalizeAcademiaId(academiaId);
+  if (!academiaIdNormalizado) return true;
+
+  const ocultoParaAcademias = Array.isArray(exercicio?.oculto_para_academias)
+    ? exercicio.oculto_para_academias.map((item) => normalizeAcademiaId(item)).filter(Boolean)
+    : [];
+
+  return !ocultoParaAcademias.includes(academiaIdNormalizado);
+}
 
 // Criar novo exercício no banco
 export async function createExercicio({ nome, categoria, descricao, series_padrao, repeticoes_padrao, carga_padrao, criado_por, academia_id, is_padrao }) {
@@ -19,9 +36,10 @@ export async function createExercicio({ nome, categoria, descricao, series_padra
 }
 
 // Listar todos os exercícios
-export async function listAllExercicios() {
+export async function listAllExercicios({ academiaId } = {}) {
   const snap = await getDocs(exerciciosCol);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const exercicios = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return exercicios.filter((item) => isExercicioPadraoVisivelParaAcademia(item, academiaId));
 }
 
 // Listar exercícios por categoria
@@ -44,10 +62,184 @@ export async function updateExercicio(exercicio_id, data) {
   await updateDoc(ref, data);
 }
 
+// Personalizar exercício padrão para uma academia sem alterar o padrão global
+export async function personalizarExercicioPadraoParaAcademia({ exercicioPadrao, payload = {}, academiaId, criadoPor }) {
+  const academiaIdNormalizado = normalizeAcademiaId(academiaId);
+  if (!exercicioPadrao?.id || !academiaIdNormalizado) {
+    throw new Error('Dados inválidos para personalizar exercício padrão');
+  }
+
+  const nome = String(payload?.nome || exercicioPadrao?.nome || '').trim();
+  const categoria = String(payload?.categoria || exercicioPadrao?.categoria || '').trim();
+  if (!nome) throw new Error('Nome do exercício é obrigatório');
+
+  const dataAcademia = {
+    nome,
+    categoria,
+    series_padrao: payload?.series_padrao ?? null,
+    repeticoes_padrao: payload?.repeticoes_padrao ?? null,
+    is_padrao: false,
+    academia_id: academiaIdNormalizado,
+    criado_por: criadoPor || null,
+    origem_exercicio_padrao_id: exercicioPadrao.id
+  };
+
+  const q = query(
+    exerciciosCol,
+    where('origem_exercicio_padrao_id', '==', exercicioPadrao.id),
+    where('academia_id', '==', academiaIdNormalizado)
+  );
+  const existing = await getDocs(q);
+
+  if (existing.docs.length > 0) {
+    const refExistente = existing.docs[0].ref;
+    await updateDoc(refExistente, dataAcademia);
+  } else {
+    await addDoc(exerciciosCol, dataAcademia);
+  }
+
+  const refPadrao = doc(db, 'exercicios', exercicioPadrao.id);
+  await updateDoc(refPadrao, {
+    oculto_para_academias: arrayUnion(academiaIdNormalizado)
+  });
+}
+
+export async function ocultarExercicioPadraoParaAcademia({ exercicioPadraoId, academiaId }) {
+  const academiaIdNormalizado = normalizeAcademiaId(academiaId);
+  const exercicioPadraoIdNormalizado = String(exercicioPadraoId || '').trim();
+
+  if (!academiaIdNormalizado || !exercicioPadraoIdNormalizado) {
+    throw new Error('Dados inválidos para ocultar exercício padrão da academia');
+  }
+
+  const refPadrao = doc(db, 'exercicios', exercicioPadraoIdNormalizado);
+  await updateDoc(refPadrao, {
+    oculto_para_academias: arrayUnion(academiaIdNormalizado)
+  });
+}
+
 // Deletar exercício
 export async function deleteExercicio(exercicio_id) {
   const ref = doc(db, 'exercicios', exercicio_id);
   await deleteDoc(ref);
+}
+
+// Deletar personalizações de academia derivadas de exercícios padrão
+export async function deleteCustomizacoesExerciciosPadrao(onProgress) {
+  const snap = await getDocs(exerciciosCol);
+  const customizacoes = snap.docs.filter((itemDoc) => {
+    const origem = String(itemDoc.data()?.origem_exercicio_padrao_id || '').trim();
+    return !!origem;
+  });
+
+  const total = customizacoes.length;
+  if (onProgress) onProgress(0, total, `Encontradas ${total} personalizações para remover...`);
+
+  for (let i = 0; i < customizacoes.length; i++) {
+    const itemDoc = customizacoes[i];
+    if (onProgress) {
+      onProgress(i, total, `Removendo personalização: ${itemDoc.data()?.nome || 'exercício'}`);
+    }
+    await deleteDoc(itemDoc.ref);
+  }
+
+  if (onProgress) onProgress(total, total, 'Personalizações removidas!');
+  return total;
+}
+
+function chunkArray(list, size) {
+  const chunks = [];
+  for (let i = 0; i < list.length; i += size) {
+    chunks.push(list.slice(i, i + size));
+  }
+  return chunks;
+}
+
+export async function exercicioTemAlunoAssociado({
+  exercicioId,
+  exercicioNome,
+  academiaId = null,
+  allowNameFallback = false,
+  strictAcademiaScope = false
+}) {
+  const treinoIds = new Set();
+
+  const idNormalizado = String(exercicioId || '').trim();
+  const nomeNormalizado = String(exercicioNome || '').trim();
+  const academiaIdNormalizado = normalizeAcademiaId(academiaId);
+
+  if (strictAcademiaScope && academiaIdNormalizado && idNormalizado) {
+    const treinosAcademiaSnap = await getDocs(
+      query(collection(db, 'treinos'), where('academia_id', '==', academiaIdNormalizado))
+    );
+
+    const treinoIdsComAluno = treinosAcademiaSnap.docs
+      .filter((treinoDoc) => {
+        const treinoData = treinoDoc.data() || {};
+        const alunoId = String(treinoData?.aluno_id || '').trim();
+        return !!alunoId;
+      })
+      .map((treinoDoc) => treinoDoc.id)
+      .filter(Boolean);
+
+    if (!treinoIdsComAluno.length) return false;
+
+    const batchesAcademia = chunkArray(treinoIdsComAluno, 10);
+    for (const batch of batchesAcademia) {
+      const itensSnap = await getDocs(
+        query(
+          collection(db, 'treino_itens'),
+          where('treino_id', 'in', batch),
+          where('exercicio_id', '==', idNormalizado)
+        )
+      );
+      if (!itensSnap.empty) return true;
+    }
+
+    return false;
+  }
+
+  if (idNormalizado) {
+    const itensById = await getDocs(query(collection(db, 'treino_itens'), where('exercicio_id', '==', idNormalizado)));
+    itensById.docs.forEach((itemDoc) => {
+      const treinoId = String(itemDoc.data()?.treino_id || '').trim();
+      if (treinoId) treinoIds.add(treinoId);
+    });
+  }
+
+  if ((!idNormalizado || allowNameFallback) && nomeNormalizado) {
+    const itensByNome = await getDocs(query(collection(db, 'treino_itens'), where('exercicio_nome', '==', nomeNormalizado)));
+    itensByNome.docs.forEach((itemDoc) => {
+      const treinoId = String(itemDoc.data()?.treino_id || '').trim();
+      if (treinoId) treinoIds.add(treinoId);
+    });
+  }
+
+  const treinoIdsList = Array.from(treinoIds);
+  if (!treinoIdsList.length) return false;
+
+  const batches = chunkArray(treinoIdsList, 10);
+  for (const batch of batches) {
+    const treinosSnap = await getDocs(query(collection(db, 'treinos'), where(documentId(), 'in', batch)));
+    const encontrouAssociado = treinosSnap.docs.some((treinoDoc) => {
+      const treinoData = treinoDoc.data() || {};
+      const treinoAcademiaId = normalizeAcademiaId(treinoData?.academia_id);
+
+      if (academiaIdNormalizado) {
+        if (strictAcademiaScope) {
+          if (treinoAcademiaId !== academiaIdNormalizado) return false;
+        } else if (treinoAcademiaId && treinoAcademiaId !== academiaIdNormalizado) {
+          return false;
+        }
+      }
+
+      const alunoId = String(treinoData?.aluno_id || '').trim();
+      return !!alunoId;
+    });
+    if (encontrouAssociado) return true;
+  }
+
+  return false;
 }
 
 // Deletar todos os exercícios padrão (is_padrao === true)
@@ -268,36 +460,33 @@ export async function inicializarBancoExercicios(onProgress) {
     { nome: 'Alongamento de Panturrilha', categoria: 'Alongamento', series_padrao: 2, repeticoes_padrao: 1 },
   ];
 
-  if (onProgress) onProgress(0, exerciciosComuns.length + 1, 'Limpando exercícios padrão antigos...');
-  console.log(`Limpando exercícios padrão antigos...`);
+  const totalEtapas = exerciciosComuns.length + 2;
+
+  if (onProgress) onProgress(0, totalEtapas, 'Limpando exercícios padrão antigos...');
   const deleted = await deleteExerciciosPadrao((current, total, status) => {
-    if (onProgress) onProgress(0, exerciciosComuns.length + 1, status);
+    if (onProgress) onProgress(0, totalEtapas, status);
   });
-  console.log(`${deleted} exercícios padrão removidos`);
+
+  if (onProgress) onProgress(1, totalEtapas, 'Limpando personalizações das academias...');
+  const customizacoesRemovidas = await deleteCustomizacoesExerciciosPadrao((current, total, status) => {
+    if (onProgress) onProgress(1, totalEtapas, status);
+  });
   
-  if (onProgress) onProgress(1, exerciciosComuns.length + 1, 'Criando novos exercícios...');
-  console.log(`Iniciando criação de ${exerciciosComuns.length} exercícios...`);
+  if (onProgress) onProgress(2, totalEtapas, 'Criando novos exercícios...');
   const results = [];
   const errors = [];
   
   for (let i = 0; i < exerciciosComuns.length; i++) {
     const exercicio = exerciciosComuns[i];
     try {
-      console.log('Criando:', exercicio.nome);
       if (onProgress) {
-        onProgress(i + 2, exerciciosComuns.length + 1, `Criando: ${exercicio.nome}`);
+        onProgress(i + 3, totalEtapas, `Criando: ${exercicio.nome}`);
       }
       const result = await createExercicio({ ...exercicio, is_padrao: true });
       results.push(result);
     } catch (err) {
-      console.error('Erro ao criar exercício:', exercicio.nome, err.message);
       errors.push({ exercicio: exercicio.nome, erro: err.message });
     }
-  }
-  
-  console.log(`Criados: ${results.length}, Erros: ${errors.length}`);
-  if (errors.length > 0) {
-    console.warn('Erros:', errors);
   }
   
   return results;

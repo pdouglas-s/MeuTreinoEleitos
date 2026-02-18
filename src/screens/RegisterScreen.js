@@ -28,7 +28,6 @@ export default function RegisterScreen({ navigation }) {
           Alert.alert('Cadastro desabilitado', 'O cadastro público está disponível apenas até o primeiro admin do sistema.');
         }
       } catch (error) {
-        console.warn('Erro ao verificar cadastro público:', error?.message || error);
       } finally {
         setChecking(false);
       }
@@ -50,7 +49,7 @@ export default function RegisterScreen({ navigation }) {
     try {
       await registerUser({ email, password, nome, role: 'admin_sistema' });
 
-      const mensagem = 'Conta de Admin do Sistema criada! Faça login.';
+      const mensagem = 'Conta de administrador do sistema criada com sucesso. Faça login.';
       
       Alert.alert('Sucesso', mensagem);
       await signOut(auth).catch(() => {});
@@ -59,7 +58,6 @@ export default function RegisterScreen({ navigation }) {
         navigation.navigate('Login');
       }, 100);
     } catch (err) {
-      console.error('Error in handleRegister:', err);
       Alert.alert('Erro ao criar conta', getAuthErrorMessage(err, 'Não foi possível criar a conta.'));
     }
   }

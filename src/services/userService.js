@@ -99,7 +99,6 @@ async function createAuthUserWithoutReplacingSession(email, password) {
 // Cria um usuário aluno e registra no Firestore conforme schema
 export async function createAluno({ nome, email }) {
   const defaultPassword = getDefaultPasswordByRole('aluno');
-  console.log('createAluno - defaultPassword configured:', !!defaultPassword);
   
   if (!defaultPassword) throw new Error('DEFAULT_STUDENT_PASSWORD não configurada');
   
@@ -137,8 +136,6 @@ export async function createAluno({ nome, email }) {
 // REGRA: Apenas nome "ADMIN" pode ser professor, demais são sempre alunos
 // Nome sempre convertido para MAIÚSCULO para garantir unicidade
 export async function registerUser({ nome, email, password, role, academiaId, academia_id }) {
-  console.log('registerUser called with:', { nome, email, role, academiaId, hasPassword: !!password });
-  
   // Remover espaços e converter nome para MAIÚSCULO
   const nomeUpperCase = nome.trim().toUpperCase();
   const emailNormalizado = normalizeEmail(email);
@@ -170,7 +167,6 @@ export async function registerUser({ nome, email, password, role, academiaId, ac
     // Primeiro cria a conta no Firebase Auth
     const userCred = await createUserWithEmailAndPassword(auth, emailNormalizado, password);
     const uid = userCred.user.uid;
-    console.log('User created in Auth:', uid);
 
     if (roleSolicitada === ROLE_ADMIN_SISTEMA) {
       if (adminLockSnap.exists()) {
@@ -201,11 +197,9 @@ export async function registerUser({ nome, email, password, role, academiaId, ac
       academia_id: academiaIdVinculo || null,
       primeiro_acesso: false
     });
-    console.log('User profile created in Firestore');
 
     return { uid };
   } catch (error) {
-    console.error('Error in registerUser:', error);
     throw error;
   }
 }

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
-import { listAllExercicios, createExercicio, deleteExercicio, inicializarBancoExercicios, existemExerciciosPadrao, deleteExerciciosPadrao, updateExercicio } from '../../services/exerciciosService';
+import { listAllExercicios, createExercicio, deleteExercicio, inicializarBancoExercicios, existemExerciciosPadrao, deleteExerciciosPadrao, updateExercicio, personalizarExercicioPadraoParaAcademia, exercicioTemAlunoAssociado, ocultarExercicioPadraoParaAcademia } from '../../services/exerciciosService';
 import { listAllProfessores } from '../../services/userService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,6 +12,8 @@ import CardMedia from '../../components/CardMedia';
 
 export default function GerenciarExercicios({ navigation }) {
   const { logout, profile } = useAuth();
+  const isSystemAdmin = profile?.role === 'admin_sistema';
+  const isAcademyAdmin = profile?.role === 'admin_academia';
   const [exercicios, setExercicios] = useState([]);
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState('');
@@ -29,13 +32,31 @@ export default function GerenciarExercicios({ navigation }) {
   const [filtroAtivo, setFiltroAtivo] = useState('todos');
 
   useEffect(() => {
+    if (!['admin_sistema', 'admin_academia'].includes(profile?.role)) {
+      Alert.alert('Acesso negado', 'Esta área é exclusiva de administradores.');
+      const fallbackRoute = profile?.role === 'admin_academia'
+        ? 'AdminAcademiaHome'
+        : profile?.role === 'professor'
+          ? 'ProfessorHome'
+          : 'AlunoHome';
+      navigation.replace(fallbackRoute);
+      return;
+    }
+
     loadExercicios();
-  }, []);
+  }, [profile?.role]);
+
+  useEffect(() => {
+    if (isSystemAdmin) {
+      setFiltroAtivo('todos');
+    }
+  }, [isSystemAdmin]);
 
   async function loadExercicios() {
     try {
+      const academiaIdAtual = String(profile?.academia_id || '').trim();
       const [list, professoresList] = await Promise.all([
-        listAllExercicios(),
+        listAllExercicios({ academiaId: academiaIdAtual }),
         listAllProfessores().catch(() => [])
       ]);
       list.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nome.localeCompare(b.nome));
@@ -46,22 +67,28 @@ export default function GerenciarExercicios({ navigation }) {
       const temPadrao = await existemExerciciosPadrao();
       setTemExerciciosPadrao(temPadrao);
     } catch (err) {
-      console.warn('Erro ao carregar exercícios', err.message);
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar os exercícios.'));
     }
   }
 
   async function handleCreateExercicio() {
     if (!nome || !categoria) return Alert.alert('Erro', 'Nome e categoria são obrigatórios');
     try {
-      await createExercicio({ 
+      const seriesTexto = String(series || '').trim();
+      const repsTexto = String(reps || '').trim();
+      const academiaIdAtual = String(profile?.academia_id || '').trim();
+      const payloadCreate = {
         nome, 
         categoria, 
-        series_padrao: Number(series) || null, 
-        repeticoes_padrao: Number(reps) || null,
+        series_padrao: seriesTexto || null,
+        repeticoes_padrao: repsTexto || null,
         criado_por: auth.currentUser?.uid, // Identifica quem criou
-        academia_id: profile?.academia_id || null
-      });
-      Alert.alert('Sucesso', 'Exercício criado');
+        academia_id: academiaIdAtual || null,
+        is_padrao: false
+      };
+
+      await createExercicio(payloadCreate);
+      Alert.alert('Sucesso', 'Exercício criado com sucesso.');
       setNome('');
       setCategoria('');
       setSeries('');
@@ -72,10 +99,45 @@ export default function GerenciarExercicios({ navigation }) {
     }
   }
 
-  async function handleDeleteExercicio(exercicio_id) {
+  async function handleDeleteExercicio(exercicio) {
     try {
-      await deleteExercicio(exercicio_id);
-      Alert.alert('Sucesso', 'Exercício excluído');
+      if (isAcademyAdmin && exercicio?.is_padrao === true) {
+        const academiaIdAtual = String(profile?.academia_id || '').trim();
+        await ocultarExercicioPadraoParaAcademia({
+          exercicioPadraoId: exercicio?.id,
+          academiaId: academiaIdAtual
+        });
+        Alert.alert('Sucesso', 'Exercício padrão ocultado para esta academia.');
+        await loadExercicios();
+        return;
+      }
+
+      let temAssociacao = false;
+      try {
+        temAssociacao = await exercicioTemAlunoAssociado({
+          exercicioId: exercicio?.id,
+          exercicioNome: exercicio?.nome,
+          academiaId: isAcademyAdmin ? profile?.academia_id : null,
+          strictAcademiaScope: isAcademyAdmin,
+          allowNameFallback: !exercicio?.id
+        });
+      } catch (checkErr) {
+        const code = String(checkErr?.code || '').toLowerCase();
+        const message = String(checkErr?.message || '').toLowerCase();
+        const isPermissionError = code.includes('permission-denied') || message.includes('insufficient permissions');
+        const podeIgnorarCheck = isAcademyAdmin && isExercicioAcademia(exercicio);
+
+        if (!(isPermissionError && podeIgnorarCheck)) {
+          throw checkErr;
+        }
+      }
+
+      if (temAssociacao) {
+        return Alert.alert('Ação bloqueada', 'Este exercício está associado a treino de aluno e não pode ser excluído.');
+      }
+
+      await deleteExercicio(exercicio.id);
+      Alert.alert('Sucesso', 'Exercício excluído com sucesso.');
       loadExercicios();
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o exercício.'));
@@ -109,19 +171,18 @@ export default function GerenciarExercicios({ navigation }) {
     const payload = {
       nome: novoNome,
       categoria: novaCategoria || exercicio.categoria || '',
-      series_padrao: novasSeries === '' ? null : Number(novasSeries),
-      repeticoes_padrao: novasReps === '' ? null : Number(novasReps)
+      series_padrao: novasSeries === '' ? null : novasSeries,
+      repeticoes_padrao: novasReps === '' ? null : novasReps
     };
 
-    if ((novasSeries !== '' && Number.isNaN(payload.series_padrao)) || (novasReps !== '' && Number.isNaN(payload.repeticoes_padrao))) {
-      return Alert.alert('Erro', 'Séries e repetições devem ser números válidos');
-    }
+    const seriesAtual = String(exercicio?.series_padrao ?? '').trim() || null;
+    const repsAtual = String(exercicio?.repeticoes_padrao ?? '').trim() || null;
 
     const unchanged =
       payload.nome === (exercicio.nome || '')
       && payload.categoria === (exercicio.categoria || '')
-      && payload.series_padrao === (exercicio.series_padrao ?? null)
-      && payload.repeticoes_padrao === (exercicio.repeticoes_padrao ?? null);
+      && payload.series_padrao === seriesAtual
+      && payload.repeticoes_padrao === repsAtual;
 
     if (unchanged) {
       cancelarEdicao();
@@ -129,20 +190,34 @@ export default function GerenciarExercicios({ navigation }) {
     }
 
     try {
+      const academiaIdAtual = String(profile?.academia_id || '').trim();
       const academiaPayload = {
         ...payload,
         criado_por: auth.currentUser?.uid,
-        academia_id: profile?.academia_id || null,
+        academia_id: academiaIdAtual || null,
         is_padrao: false
       };
 
-      if (exercicio?.is_padrao === true) {
-        await updateExercicio(exercicio.id, academiaPayload);
-        Alert.alert('Sucesso', 'Exercício removido do padrão e atualizado para a academia');
+      const sistemaPayload = {
+        ...payload,
+        is_padrao: true
+      };
+
+      if (exercicio?.is_padrao === true && academiaIdAtual) {
+        await personalizarExercicioPadraoParaAcademia({
+          exercicioPadrao: exercicio,
+          payload,
+          academiaId: academiaIdAtual,
+          criadoPor: auth.currentUser?.uid
+        });
+        Alert.alert('Sucesso', 'Exercício removido do padrão e atualizado para esta academia.');
         setFiltroAtivo('academia');
+      } else if (exercicio?.is_padrao === true && isSystemAdmin) {
+        await updateExercicio(exercicio.id, sistemaPayload);
+        Alert.alert('Sucesso', 'Exercício padrão atualizado com sucesso.');
       } else {
         await updateExercicio(exercicio.id, academiaPayload);
-        Alert.alert('Sucesso', 'Exercício atualizado');
+        Alert.alert('Sucesso', 'Exercício atualizado com sucesso.');
       }
 
       await loadExercicios();
@@ -153,19 +228,22 @@ export default function GerenciarExercicios({ navigation }) {
   }
 
   async function confirmDelete(exercicio) {
+    const isOcultacaoPadraoAcademia = isAcademyAdmin && exercicio?.is_padrao === true;
     const confirmado = await Alert.confirm(
-      'Confirmar exclusão',
-      `Deseja realmente excluir "${exercicio.nome}"?`,
-      { confirmText: 'Excluir', destructive: true }
+      isOcultacaoPadraoAcademia ? 'Confirmar ocultação' : 'Confirmar exclusão',
+      isOcultacaoPadraoAcademia
+        ? `Deseja ocultar "${exercicio.nome}" somente para esta academia?`
+        : `Deseja realmente excluir "${exercicio.nome}"?`,
+      { confirmText: isOcultacaoPadraoAcademia ? 'Ocultar' : 'Excluir', destructive: true }
     );
     if (!confirmado) return;
-    handleDeleteExercicio(exercicio.id);
+    handleDeleteExercicio(exercicio);
   }
 
   async function handleInicializarBanco() {
     const mensagem = temExerciciosPadrao 
-      ? 'Isto irá substituir os exercícios padrão do sistema.\n\nSeus exercícios personalizados serão mantidos.\n\nContinuar?'
-      : 'Isto irá adicionar 162 exercícios padrão ao banco.\n\nContinuar?';
+      ? 'Esta ação irá substituir os exercícios padrão do sistema para todas as academias.\n\nPersonalizações derivadas dos exercícios padrão serão reiniciadas.\n\nDeseja continuar?'
+      : 'Esta ação irá adicionar 162 exercícios padrão ao banco.\n\nDeseja continuar?';
     
     const confirmado = await Alert.confirm('Confirmar ação', mensagem, { confirmText: 'Continuar' });
     if (!confirmado) return;
@@ -174,23 +252,19 @@ export default function GerenciarExercicios({ navigation }) {
       setProgresso(0);
       setStatusMensagem('Preparando...');
       
-      console.log('Iniciando reinicialização de exercícios padrão...');
-      
       const results = await inicializarBancoExercicios((current, total, status) => {
         setProgresso(Math.round((current / total) * 100));
         setStatusMensagem(status);
       });
-      
-      console.log('Exercícios criados:', results.length);
+
       setStatusMensagem('Carregando exercícios...');
       await loadExercicios();
       
       setCarregando(false);
       setProgresso(0);
       setStatusMensagem('');
-      Alert.alert('Sucesso', `Banco atualizado! ${results.length} exercícios padrão adicionados.`);
+      Alert.alert('Sucesso', `Banco atualizado: ${results.length} exercícios padrão adicionados.`);
     } catch (err) {
-      console.error('Erro ao inicializar banco:', err);
       setCarregando(false);
       setProgresso(0);
       setStatusMensagem('');
@@ -201,8 +275,8 @@ export default function GerenciarExercicios({ navigation }) {
   async function handleExcluirPadrao() {
     const confirmado = await Alert.confirm(
       'Confirmar exclusão',
-      'Deseja excluir TODOS os exercícios padrão do sistema?\n\nSeus exercícios personalizados serão mantidos.\n\nEsta ação não pode ser desfeita!',
-      { confirmText: 'Excluir tudo', destructive: true }
+      'Deseja realmente excluir todos os exercícios padrão do sistema?\n\nSeus exercícios personalizados serão mantidos.\n\nEsta ação não pode ser desfeita.',
+      { confirmText: 'Excluir', destructive: true }
     );
     if (!confirmado) return;
     try {
@@ -222,9 +296,8 @@ export default function GerenciarExercicios({ navigation }) {
       setProgresso(0);
       setStatusMensagem('');
       
-      Alert.alert('Sucesso', `${deleted} exercícios padrão foram excluídos.`);
+      Alert.alert('Sucesso', `${deleted} exercícios padrão excluídos.`);
     } catch (err) {
-      console.error('Erro ao excluir exercícios padrão:', err);
       setCarregando(false);
       setProgresso(0);
       setStatusMensagem('');
@@ -249,6 +322,8 @@ export default function GerenciarExercicios({ navigation }) {
   ].filter(Boolean));
 
   const isExercicioAcademia = (item) => {
+    if (isSystemAdmin) return item?.is_padrao !== true;
+
     if (item?.is_padrao === true) return false;
 
     const itemAcademiaId = String(item?.academia_id || '').trim();
@@ -262,6 +337,7 @@ export default function GerenciarExercicios({ navigation }) {
   const exerciciosAcademia = exercicios.filter(isExercicioAcademia);
 
   const exerciciosVisiveis = exercicios.filter((item) => {
+    if (isSystemAdmin) return true;
     if (item?.is_padrao === true) return true;
     return isExercicioAcademia(item);
   });
@@ -284,8 +360,35 @@ export default function GerenciarExercicios({ navigation }) {
     setFiltroAtivo((atual) => (atual === tipo ? 'todos' : tipo));
   }
 
+  function formatarDetalhesExercicio(item) {
+    const categoria = String(item?.categoria || '').trim();
+    const seriesPadrao = item?.series_padrao;
+    const repeticoesPadrao = item?.repeticoes_padrao;
+
+    const temSeries = seriesPadrao !== null && seriesPadrao !== undefined && String(seriesPadrao).trim() !== '';
+    const temRepeticoes = repeticoesPadrao !== null && repeticoesPadrao !== undefined && String(repeticoesPadrao).trim() !== '';
+
+    const partes = [];
+    if (categoria) partes.push(categoria);
+
+    if (temSeries && temRepeticoes) {
+      partes.push(`${seriesPadrao}x${repeticoesPadrao}`);
+    } else if (temSeries) {
+      partes.push(`${seriesPadrao} séries`);
+    } else if (temRepeticoes) {
+      partes.push(`${repeticoesPadrao} repetições`);
+    }
+
+    return partes.join(' • ');
+  }
+
   return (
     <View style={styles.container}>
+      <TouchableWithoutFeedback onPress={() => navigation.goBack()}>
+        <View style={styles.backBtn}>
+          <Text style={styles.backBtnText}>← Voltar ao painel</Text>
+        </View>
+      </TouchableWithoutFeedback>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Gerenciar Banco de Exercícios</Text>
@@ -342,47 +445,62 @@ export default function GerenciarExercicios({ navigation }) {
         </View>
       )}
 
-      <View style={styles.cardBlock}>
-        <CardMedia variant="sistema" label="BANCO PADRÃO" />
-        <Text style={styles.blockTitle}>Banco padrão do sistema</Text>
-        <Text style={styles.blockHint}>Use para popular ou limpar exercícios padrões sem afetar os personalizados.</Text>
-        <View style={styles.actionContainer}>
-        <Button 
-          title={carregando ? "⏳ Processando..." : (temExerciciosPadrao ? "🔄 Reinicializar Exercícios Padrão" : "✨ Inicializar Exercícios Padrão")}
-          onPress={handleInicializarBanco}
-          color={theme.colors.primary}
-          disabled={carregando}
-        />
-        {temExerciciosPadrao && (
-          <View style={{ marginTop: 8 }}>
-            <Button 
-              title="🗑️ Excluir Exercícios Padrão"
-              onPress={handleExcluirPadrao}
-              color={theme.colors.danger}
-              disabled={carregando}
-            />
+      {isSystemAdmin && (
+        <View style={styles.cardBlock}>
+          <CardMedia variant="sistema" label="BANCO PADRÃO" />
+          <Text style={styles.blockTitle}>Banco padrão do sistema</Text>
+          <Text style={styles.blockHint}>Use para popular ou limpar exercícios padrões sem afetar os personalizados.</Text>
+          <View style={styles.actionContainer}>
+          <Button 
+              title={carregando ? "Processando..." : (temExerciciosPadrao ? "Reinicializar exercícios padrão" : "Inicializar exercícios padrão")}
+            onPress={handleInicializarBanco}
+            color={theme.colors.primary}
+            disabled={carregando}
+          />
+          {temExerciciosPadrao && (
+            <View style={{ marginTop: 8 }}>
+              <Button 
+                title="Excluir exercícios padrão"
+                onPress={handleExcluirPadrao}
+                color={theme.colors.danger}
+                disabled={carregando}
+              />
+            </View>
+          )}
           </View>
-        )}
         </View>
-      </View>
+      )}
 
       <View style={styles.cardBlock}>
         <CardMedia variant="exercicio" label="NOVO EXERCÍCIO" />
         <Text style={styles.blockTitle}>Cadastrar novo exercício</Text>
         <TextInput placeholder="Nome do exercício" style={styles.input} value={nome} onChangeText={setNome} />
         <TextInput placeholder="Categoria (Peito, Costas, Pernas...)" style={styles.input} value={categoria} onChangeText={setCategoria} />
-        <TextInput placeholder="Séries padrão" style={styles.input} value={series} onChangeText={setSeries} keyboardType="numeric" />
-        <TextInput placeholder="Repetições padrão" style={styles.input} value={reps} onChangeText={setReps} keyboardType="numeric" />
+        <TextInput placeholder="Séries padrão" style={styles.input} value={series} onChangeText={setSeries} />
+        <TextInput placeholder="Repetições padrão" style={styles.input} value={reps} onChangeText={setReps} />
         <Button title="Adicionar Exercício" onPress={handleCreateExercicio} />
       </View>
 
-      <Text style={styles.section}>Exercícios Cadastrados ({exerciciosFiltrados.length}){filtroDescricao}</Text>
+      <View style={styles.sectionRow}>
+        <Text style={styles.section}>Exercícios Cadastrados ({exerciciosFiltrados.length}){filtroDescricao}</Text>
+        {filtroAtivo !== 'todos' && (
+          <TouchableOpacity onPress={() => setFiltroAtivo('todos')} style={styles.clearFilterBtn}>
+            <Text style={styles.clearFilterText}>Mostrar todos</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       
       <FlatList
         data={exerciciosFiltrados}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
+          (() => {
+            const showDualIconsPadraoAcademia = isAcademyAdmin && item?.is_padrao === true;
+            const detalhesExercicio = formatarDetalhesExercicio(item);
+            return (
           <TouchableOpacity
             style={styles.exercicioRow}
             onPress={() => {
@@ -411,23 +529,23 @@ export default function GerenciarExercicios({ navigation }) {
                       onChangeText={setSeriesEditadas}
                       style={[styles.editInput, styles.editMiniInput]}
                       placeholder="Séries"
-                      keyboardType="numeric"
                     />
                     <TextInput
                       value={repsEditadas}
                       onChangeText={setRepsEditadas}
                       style={[styles.editInput, styles.editMiniInput]}
                       placeholder="Reps"
-                      keyboardType="numeric"
                     />
                   </View>
                 </>
               ) : (
                 <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome}</Text>
               )}
-              <Text style={{ fontSize: 12, color: theme.colors.muted }}>
-                {item.categoria} • {item.series_padrao || '-'}x{item.repeticoes_padrao || '-'}
-              </Text>
+              {!!detalhesExercicio && (
+                <Text style={{ fontSize: 12, color: theme.colors.muted }}>
+                  {detalhesExercicio}
+                </Text>
+              )}
             </View>
             <View style={styles.rowActions}>
               {editandoId === item.id ? (
@@ -441,13 +559,23 @@ export default function GerenciarExercicios({ navigation }) {
                 </>
               ) : (
                 <>
-                  <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
-                    <Text style={styles.deleteText}>🗑️</Text>
+                  {showDualIconsPadraoAcademia && (
+                    <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}>
+                      <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => confirmDelete(item)}
+                    style={styles.deleteBtn}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={theme.colors.danger} />
                   </TouchableOpacity>
                 </>
               )}
             </View>
           </TouchableOpacity>
+            );
+          })()
         )}
       />
     </View>
@@ -456,6 +584,21 @@ export default function GerenciarExercicios({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: theme.spacing(2), backgroundColor: theme.colors.background },
+  backBtn: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.card,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10
+  },
+  backBtnText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600'
+  },
   header: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
@@ -509,6 +652,26 @@ const styles = StyleSheet.create({
     fontWeight: '500' 
   },
   section: { fontWeight: '600', marginTop: theme.spacing(1.5), marginBottom: theme.spacing(0.5), color: theme.colors.text },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing(1.5),
+    marginBottom: theme.spacing(0.5)
+  },
+  clearFilterBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: theme.radii.sm,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: theme.colors.card
+  },
+  clearFilterText: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: '600'
+  },
   cardBlock: {
     backgroundColor: theme.colors.card,
     borderRadius: theme.radii.md,
@@ -556,6 +719,15 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.danger,
     marginLeft: 8
   },
+  editBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    marginLeft: 8
+  },
   saveBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -573,10 +745,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     marginLeft: 8
-  },
-  deleteText: {
-    color: theme.colors.danger,
-    fontSize: 14
   },
   saveText: {
     color: theme.colors.primary,
@@ -649,5 +817,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: theme.colors.text,
     textAlign: 'center'
+  },
+  list: {
+    minHeight: 220,
+    marginTop: 6
+  },
+  listContent: {
+    paddingBottom: 24
   }
 });

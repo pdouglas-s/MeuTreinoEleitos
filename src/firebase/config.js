@@ -31,14 +31,6 @@ const firebaseConfig = {
 
 let app, auth, db, functions;
 
-// Debug: Mostrar status das variáveis de ambiente
-console.log('=== FIREBASE CONFIG DEBUG ===');
-console.log('API Key presente:', !!firebaseConfig.apiKey);
-console.log('App ID presente:', !!firebaseConfig.appId);
-console.log('Project ID:', firebaseConfig.projectId);
-console.log('Auth Domain:', firebaseConfig.authDomain);
-console.log('============================');
-
 // Só inicializa Firebase se as credenciais essenciais estiverem presentes
 const hasRequiredConfig = firebaseConfig.apiKey && firebaseConfig.appId;
 
@@ -51,23 +43,14 @@ if (hasRequiredConfig) {
     
     // Configurar persistência de autenticação (mantém usuário logado)
     setPersistence(auth, browserLocalPersistence)
-      .then(() => {
-        console.log('✅ Persistência de autenticação configurada');
-      })
-      .catch((error) => {
-        console.warn('⚠️ Erro ao configurar persistência:', error);
-      });
-    
-    console.log('✅ Firebase inicializado com sucesso!');
+      .catch(() => {});
   } catch (error) {
-    console.error('❌ Erro ao inicializar Firebase:', error);
     app = null;
     auth = null;
     db = null;
     functions = null;
   }
 } else {
-  console.warn('⚠️ Firebase NÃO inicializado: faltam API Key ou App ID');
   app = null;
   auth = null;
   db = null;

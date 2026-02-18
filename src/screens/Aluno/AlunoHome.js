@@ -63,9 +63,7 @@ export default function AlunoHome({ navigation }) {
           setTreinos((prev) => prev.map((treinoAtual) => (
             treinoAtual.id === treinoBase.id ? { ...treinoAtual, itens } : treinoAtual
           )));
-        }, (snapshotErr) => {
-          console.warn('Erro no listener de itens do treino:', snapshotErr?.message || snapshotErr);
-        });
+        }, () => {});
       });
     }
 
@@ -116,17 +114,13 @@ export default function AlunoHome({ navigation }) {
               try {
                 const professorIdResponsavel = tWithItems[0]?.professor_id || null;
                 await notificarResumoSemanalAluno(user.uid, professorIdResponsavel, profile?.nome || 'Atleta');
-              } catch (resumoErr) {
-                console.warn('Resumo semanal fallback não enviado:', resumoErr?.message || resumoErr);
-              }
+              } catch (resumoErr) {}
             }
           } catch (snapshotErr) {
-            console.warn('Erro ao atualizar treinos em tempo real:', snapshotErr?.message || snapshotErr);
           } finally {
             setLoading(false);
           }
-        }, (snapshotErr) => {
-          console.warn('Erro no listener de treinos:', snapshotErr?.message || snapshotErr);
+        }, () => {
           setLoading(false);
         });
 
@@ -142,11 +136,8 @@ export default function AlunoHome({ navigation }) {
         );
         unsubscribeNotificacoes = onSnapshot(notificacoesNaoLidasQuery, (snapshot) => {
           setNotifCount(snapshot.size);
-        }, (snapshotErr) => {
-          console.warn('Erro no listener de notificações:', snapshotErr?.message || snapshotErr);
-        });
+        }, () => {});
       } catch (err) {
-        console.warn('Erro ao listar treinos:', err.message);
       } finally {
         setLoading(false);
       }

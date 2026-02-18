@@ -61,7 +61,6 @@ export function AuthProvider({ children }) {
           await AsyncStorage.multiRemove(['userToken', 'userId', 'userProfile']);
         }
       } catch (error) {
-        console.error('Erro no onAuthStateChanged:', error);
       } finally {
         setLoading(false);
       }
@@ -80,7 +79,6 @@ export function AuthProvider({ children }) {
         await AsyncStorage.setItem('userToken', newToken);
         return newToken;
       } catch (error) {
-        console.error('Erro ao refresh token:', error);
         throw error;
       }
     }
@@ -102,7 +100,6 @@ export function AuthProvider({ children }) {
         
         return tokenResult.token;
       } catch (error) {
-        console.error('Erro ao obter token válido:', error);
         throw error;
       }
     }
@@ -115,7 +112,6 @@ export function AuthProvider({ children }) {
       await signOut(auth);
       // onAuthStateChanged automaticamente limpará o estado
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
       throw error;
     }
   };

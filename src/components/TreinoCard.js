@@ -125,7 +125,6 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
       await Linking.openURL(link);
     } catch (err) {
-      console.warn(`Erro ao abrir ${plataforma}:`, err?.message || err);
       Alert.alert('Erro', `Falha ao abrir ${plataforma}.`);
     }
   }
@@ -152,7 +151,6 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         setExercicios(exerciciosAtualizados);
       }
     } catch (err) {
-      console.warn('Erro ao carregar sessão ativa:', err);
     } finally {
       setCarregando(false);
     }
@@ -176,18 +174,15 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
             treino_id: treino.id,
             academia_id: treino.academia_id || null
           });
-        } catch (notifyErr) {
-          console.warn('Falha ao enviar notificação de treino iniciado:', notifyErr?.message || notifyErr);
-        }
+        } catch (notifyErr) {}
       }
 
       if (modoCompacto) {
         setDetalhesAbertos(true);
       }
       
-      Alert.alert('Sucesso', 'Treino iniciado! Boa sorte! 💪\nSugestões de playlist disponíveis abaixo.');
+      Alert.alert('Sucesso', 'Treino iniciado com sucesso.\nSugestões de playlist disponíveis abaixo.');
     } catch (err) {
-      console.error('Erro ao iniciar sessão:', err);
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível iniciar o treino.'));
     } finally {
       setIniciandoSessao(false);
@@ -227,12 +222,9 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
               treino_nome: treino.nome_treino,
               academia_id: treino.academia_id || null
             });
-          } catch (notifyErr) {
-            console.warn('Falha ao enviar notificação de exercício concluído:', notifyErr?.message || notifyErr);
-          }
+          } catch (notifyErr) {}
         }
       } catch (err) {
-        console.error('Erro ao marcar exercício:', err);
         // Reverter em caso de erro
         copy[index].done = !novoDone;
         setExercicios(copy);
@@ -295,9 +287,9 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
     if (totalConcluidos < total) {
       const confirmar = await Alert.confirm(
-        'Confirmar finalização',
-        `Você concluiu ${totalConcluidos} de ${total} exercícios.\n\nDeseja finalizar mesmo assim?`,
-        { confirmText: 'Finalizar' }
+        'Confirmar finalização do treino',
+        `Você concluiu ${totalConcluidos} de ${total} exercícios.\n\nDeseja continuar com a finalização?`,
+        { confirmText: 'Finalizar treino' }
       );
       if (!confirmar) return;
     }
@@ -319,9 +311,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
           const mediaAcademia = await calcularTempoMedioAcademia(treino.academia_id);
           tempoMedioAcademiaSegundos = Number(mediaAcademia?.mediaSegundos || 0);
           tempoMedioAcademiaFormatado = mediaAcademia?.mediaFormatada || null;
-        } catch (mediaErr) {
-          console.warn('Falha ao calcular tempo médio da academia:', mediaErr?.message || mediaErr);
-        }
+        } catch (mediaErr) {}
       }
       
       if (professorId) {
@@ -340,9 +330,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
             tempo_medio_academia_formatado: tempoMedioAcademiaFormatado,
             academia_id: treino.academia_id || null
           });
-        } catch (notifyErr) {
-          console.warn('Falha ao enviar notificação de treino finalizado:', notifyErr?.message || notifyErr);
-        }
+        } catch (notifyErr) {}
       }
 
       Alert.alert('Parabéns! 🎉', `Treino finalizado com sucesso!\n\n${totalConcluidos}/${total} exercícios concluídos\nTempo total: ${tempoSessaoFormatado}`);
@@ -355,7 +343,6 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       setExercicios((treino.itens || []).map((e) => ({ ...e, done: false })));
       cancelarFinalizacao();
     } catch (err) {
-      console.error('Erro ao finalizar sessão:', err);
       Alert.alert('Erro', 'Não foi possível finalizar o treino');
     }
   }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ImageBackground, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -43,6 +43,7 @@ export default function ProfessorHome({ navigation }) {
   const [alunosLoaded, setAlunosLoaded] = useState(false);
   const orphanCleanupAttemptsRef = useRef(new Set());
   const orphanCleanupInFlightRef = useRef(false);
+  const navigationGuardRef = useRef(false);
   const [notifCount, setNotifCount] = useState(0);
   const [exerciciosPadraoCount, setExerciciosPadraoCount] = useState(0);
   const [exerciciosAcademiaCount, setExerciciosAcademiaCount] = useState(0);
@@ -114,16 +115,12 @@ export default function ProfessorHome({ navigation }) {
       const list = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
       list.sort((a, b) => (a.nome_treino || '').localeCompare(b.nome_treino || ''));
       setTreinos(list);
-    }, (err) => {
-      console.warn('Erro ao escutar treinos da academia', err?.message || err);
-    });
+    }, () => {});
 
     const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
       const naoLidas = snapshot.docs.filter((docSnap) => docSnap.data()?.lida === false).length;
       setNotifCount(naoLidas);
-    }, (err) => {
-      console.warn('Erro ao escutar notificações da academia', err?.message || err);
-    });
+    }, () => {});
 
     return () => {
       unsubTreinos();
@@ -140,9 +137,7 @@ export default function ProfessorHome({ navigation }) {
     const unsubscribe = onSnapshot(notifsQuery, (snapshot) => {
       const naoLidas = snapshot.docs.filter((docSnap) => docSnap.data()?.lida === false).length;
       setNotifCount(naoLidas);
-    }, (err) => {
-      console.warn('Erro ao escutar notificações do professor', err?.message || err);
-    });
+    }, () => {});
 
     return () => unsubscribe();
   }, [isSystemAdmin, isAcademyAdmin, isProfessor, profile?.id, profile?.uid]);
@@ -224,9 +219,7 @@ export default function ProfessorHome({ navigation }) {
     try {
       const list = await listAcademias();
       setAcademias(list);
-    } catch (err) {
-      console.warn('Erro ao carregar academias', err?.message || err);
-    }
+    } catch (err) {}
   }
 
   async function loadNotificacoes(professorId) {
@@ -235,9 +228,7 @@ export default function ProfessorHome({ navigation }) {
         ? await contarNaoLidasAcademia(profile?.academia_id)
         : await contarNaoLidas(professorId);
       setNotifCount(count);
-    } catch (err) {
-      console.warn('Erro ao carregar notificações', err);
-    }
+    } catch (err) {}
   }
 
   async function loadTreinosProfessor(professor_id) {
@@ -249,7 +240,6 @@ export default function ProfessorHome({ navigation }) {
     } catch (err) {
       setTreinos([]);
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar os treinos.'));
-      console.warn('Erro ao carregar treinos', err?.message || err);
     }
   }
 
@@ -261,7 +251,6 @@ export default function ProfessorHome({ navigation }) {
     } catch (err) {
       setTreinos([]);
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar os treinos da academia.'));
-      console.warn('Erro ao carregar treinos da academia', err?.message || err);
     }
   }
 
@@ -278,7 +267,6 @@ export default function ProfessorHome({ navigation }) {
       });
       setAlunosMap(map);
     } catch (err) {
-      console.warn('Erro ao carregar alunos', err.message);
     } finally {
       setAlunosLoaded(true);
     }
@@ -288,16 +276,14 @@ export default function ProfessorHome({ navigation }) {
     try {
       const list = await listAllProfessores();
       setProfessores(list);
-    } catch (err) {
-      console.warn('Erro ao carregar professores', err.message);
-    }
+    } catch (err) {}
   }
 
   async function loadExerciciosResumoAcademia() {
     try {
-      const list = await listAllExercicios();
-      const padrao = list.filter((item) => item?.is_padrao === true).length;
       const myAcademiaId = String(profile?.academia_id || '').trim();
+      const list = await listAllExercicios({ academiaId: myAcademiaId });
+      const padrao = list.filter((item) => item?.is_padrao === true).length;
 
       const creatorIds = new Set([
         auth.currentUser?.uid,
@@ -314,7 +300,6 @@ export default function ProfessorHome({ navigation }) {
       setExerciciosPadraoCount(padrao);
       setExerciciosAcademiaCount(academia);
     } catch (err) {
-      console.warn('Erro ao carregar resumo de exercícios da academia', err?.message || err);
       setExerciciosPadraoCount(0);
       setExerciciosAcademiaCount(0);
     }
@@ -341,10 +326,6 @@ export default function ProfessorHome({ navigation }) {
       const successCount = results.filter((result) => result.status === 'fulfilled').length;
       const failCount = results.length - successCount;
 
-      if (failCount > 0) {
-        console.warn(`Falha ao limpar ${failCount} vínculo(s) órfão(s) de treino`);
-      }
-
       if (successCount > 0) {
         const uid = auth.currentUser?.uid;
         if (uid) {
@@ -361,7 +342,7 @@ export default function ProfessorHome({ navigation }) {
     if (!isValidEmail(email)) return Alert.alert('Erro', 'Digite um e-mail válido');
     try {
       await createAluno({ nome, email });
-      Alert.alert('Sucesso', 'Aluno criado (senha padrão definida via variável de ambiente)');
+      Alert.alert('Sucesso', 'Aluno criado com senha padrão definida.');
       setNome('');
       setEmail('');
     } catch (err) {
@@ -400,7 +381,7 @@ export default function ProfessorHome({ navigation }) {
       setNomeAdminAcademia('');
       setEmailAdminAcademia('');
       setAcademiaSelecionadaAdmin('');
-      Alert.alert('Sucesso', 'Admin da academia criado com senha padrão e primeiro acesso habilitado');
+      Alert.alert('Sucesso', 'Administrador da academia criado com senha padrão e primeiro acesso habilitado.');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o admin da academia.'));
     }
@@ -411,7 +392,7 @@ export default function ProfessorHome({ navigation }) {
     if (!isValidEmail(emailProfessor)) return Alert.alert('Erro', 'Digite um e-mail válido');
     try {
       await createProfessor({ nome: nomeProfessor, email: emailProfessor });
-      Alert.alert('Sucesso', 'Professor criado com senha padrão e primeiro acesso habilitado');
+      Alert.alert('Sucesso', 'Professor criado com senha padrão e primeiro acesso habilitado.');
       setNomeProfessor('');
       setEmailProfessor('');
       await loadProfessores();
@@ -424,7 +405,7 @@ export default function ProfessorHome({ navigation }) {
     try {
       await deleteProfessorProfile(professorId);
       setProfessores(prev => prev.filter(item => item.id !== professorId));
-      Alert.alert('Sucesso', 'Professor removido do Firestore e e-mail bloqueado no sistema');
+      Alert.alert('Sucesso', 'Professor removido e e-mail bloqueado no sistema.');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível excluir o professor.'));
     }
@@ -436,7 +417,7 @@ export default function ProfessorHome({ navigation }) {
     try {
       await unblockBlockedEmail(emailDesbloqueio);
       setEmailDesbloqueio('');
-      Alert.alert('Sucesso', 'E-mail desbloqueado no sistema');
+      Alert.alert('Sucesso', 'E-mail desbloqueado com sucesso.');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível desbloquear o e-mail.'));
     }
@@ -482,7 +463,6 @@ export default function ProfessorHome({ navigation }) {
             academia_id: profile?.academia_id || null
           });
         } catch (notifyErr) {
-          console.warn('Falha ao enviar notificação de treino associado:', notifyErr?.message || notifyErr);
         }
       }
 
@@ -495,7 +475,6 @@ export default function ProfessorHome({ navigation }) {
           academia_id: profile?.academia_id || null
         });
       } catch (notifyErr) {
-        console.warn('Falha ao enviar notificação de treino criado para academia:', notifyErr?.message || notifyErr);
       }
 
       setNomeTreino('');
@@ -508,7 +487,7 @@ export default function ProfessorHome({ navigation }) {
       } else {
         await loadTreinosProfessor(professor_id);
       }
-      Alert.alert('Sucesso', alunoId ? 'Treino criado para o aluno selecionado' : 'Treino modelo criado (sem aluno)');
+      Alert.alert('Sucesso', alunoId ? 'Treino criado para o aluno selecionado.' : 'Treino modelo criado (sem aluno).');
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível criar o treino.'));
     }
@@ -521,6 +500,18 @@ export default function ProfessorHome({ navigation }) {
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Falha ao sair.'));
     }
+  }
+
+  function handleNavigateCard(routeName) {
+    if (navigationGuardRef.current) return;
+    navigationGuardRef.current = true;
+
+    InteractionManager.runAfterInteractions(() => {
+      navigation.navigate(routeName);
+      setTimeout(() => {
+        navigationGuardRef.current = false;
+      }, 300);
+    });
   }
 
   if (!profile) {
@@ -583,37 +574,43 @@ export default function ProfessorHome({ navigation }) {
 
       {!isSystemAdmin && <View style={styles.statsRow}>
         {isAcademyAdmin && (
-          <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('AlunosList')} activeOpacity={0.8}>
-            <CardMedia variant="aluno" label="ALUNOS" compact />
-            <Text style={styles.statValue}>{alunos.length}</Text>
-            <Text style={styles.statLabel}>Alunos</Text>
-          </TouchableOpacity>
+          <TouchableWithoutFeedback onPress={() => handleNavigateCard('AlunosList')}>
+            <View style={styles.statCard}>
+              <CardMedia variant="aluno" label="ALUNOS" compact />
+              <Text style={styles.statValue}>{alunos.length}</Text>
+              <Text style={styles.statLabel}>Alunos</Text>
+            </View>
+          </TouchableWithoutFeedback>
         )}
         {isAcademyAdmin && (
-          <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('ProfessoresList')} activeOpacity={0.8}>
-            <CardMedia variant="professor" label="PROFESSORES" compact />
-            <Text style={styles.statValue}>{professores.length}</Text>
-            <Text style={styles.statLabel}>Professores</Text>
-          </TouchableOpacity>
+          <TouchableWithoutFeedback onPress={() => handleNavigateCard('ProfessoresList')}>
+            <View style={styles.statCard}>
+              <CardMedia variant="professor" label="PROFESSORES" compact />
+              <Text style={styles.statValue}>{professores.length}</Text>
+              <Text style={styles.statLabel}>Professores</Text>
+            </View>
+          </TouchableWithoutFeedback>
         )}
-        <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('TreinosList')} activeOpacity={0.8}>
-          <CardMedia variant="treino" label="TREINOS" compact />
-          <Text style={styles.statValue}>{treinos.length}</Text>
-          <Text style={styles.statLabel}>Treinos</Text>
-          <Text style={styles.statMetaText}>📋 Modelos: {treinosModeloCount}</Text>
-          <Text style={styles.statMetaText}>👤 Associados: {treinosComAlunoCount}</Text>
-        </TouchableOpacity>
+        <TouchableWithoutFeedback onPress={() => handleNavigateCard('TreinosList')}>
+          <View style={styles.statCard}>
+            <CardMedia variant="treino" label="TREINOS" compact />
+            <Text style={styles.statValue}>{treinos.length}</Text>
+            <Text style={styles.statLabel}>Treinos</Text>
+            <Text style={styles.statMetaText}>📋 Modelos: {treinosModeloCount}</Text>
+            <Text style={styles.statMetaText}>👤 Associados: {treinosComAlunoCount}</Text>
+          </View>
+        </TouchableWithoutFeedback>
       </View>}
 
       {isAcademyAdmin && (
-        <TouchableOpacity
+        <View
           style={styles.exerciseCard}
-          onPress={() => navigation.navigate('GerenciarExercicios')}
-          activeOpacity={0.85}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={() => handleNavigateCard('GerenciarExercicios')}
         >
-          <CardMedia variant="exercicio" label="BANCO DE EXERCÍCIOS" compact />
+          <CardMedia variant="exercicio" label="EXERCÍCIOS" compact />
           <View style={styles.exerciseCardHeader}>
-            <Text style={styles.exerciseCardTitle}>Exercícios</Text>
+            <Text style={styles.exerciseCardTitle}>Exercícios da academia</Text>
             <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
           </View>
           <View style={styles.exerciseMetricsRow}>
@@ -626,43 +623,36 @@ export default function ProfessorHome({ navigation }) {
               <Text style={styles.exerciseMetricLabel}>Da academia</Text>
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       )}
 
       {!isSystemAdmin && (
         <View style={styles.statsRow}>
-          <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Notificacoes')} activeOpacity={0.8}>
-            <CardMedia variant="notificacao" label="NOTIFICAÇÕES" compact />
-            <Text style={styles.statValue}>{notifCount}</Text>
-            <Text style={styles.statLabel}>Notificações</Text>
-          </TouchableOpacity>
+          <TouchableWithoutFeedback onPress={() => handleNavigateCard('Notificacoes')}>
+            <View style={styles.statCard}>
+              <CardMedia variant="notificacao" label="NOTIFICAÇÕES" compact />
+              <Text style={styles.statValue}>{notifCount}</Text>
+              <Text style={styles.statLabel}>Notificações</Text>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
       )}
 
       {isAcademyAdmin && (
-        <TouchableOpacity
-          style={styles.reportCard}
-          onPress={() => navigation.navigate('RelatorioEsforco')}
-          activeOpacity={0.85}
-        >
-          <CardMedia variant="relatorio" label="RELATÓRIO" compact />
-          <View style={styles.reportCardIconWrap}>
-            <Ionicons name="bar-chart" size={20} color={theme.colors.primary} />
+        <TouchableWithoutFeedback onPress={() => handleNavigateCard('RelatorioEsforco')}>
+          <View style={styles.reportCard}>
+            <CardMedia variant="relatorio" label="RELATÓRIO" compact />
+            <View style={styles.reportCardIconWrap}>
+              <Ionicons name="bar-chart" size={20} color={theme.colors.primary} />
+            </View>
+            <View style={styles.reportCardContent}>
+              <Text style={styles.reportCardTitle}>Gerenciar notificações por treino</Text>
+              <Text style={styles.reportCardHint}>Relatório estatístico de esforço por grupo muscular</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
           </View>
-          <View style={styles.reportCardContent}>
-            <Text style={styles.reportCardTitle}>Gerenciar notificações por treino</Text>
-            <Text style={styles.reportCardHint}>Relatório estatístico de esforço por grupo muscular</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
-        </TouchableOpacity>
+        </TouchableWithoutFeedback>
       )}
-
-      {!isSystemAdmin && isAcademyAdmin && <TouchableOpacity 
-        style={styles.bancoExerciciosBtn} 
-        onPress={() => navigation.navigate('GerenciarExercicios')}
-      >
-        <Text style={styles.bancoExerciciosText}>📚 Gerenciar Banco de Exercícios</Text>
-      </TouchableOpacity>}
 
       {isSystemAdmin && (
         <View style={styles.cardBlock}>

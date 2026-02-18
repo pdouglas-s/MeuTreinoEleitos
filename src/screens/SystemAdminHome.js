@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Button, ImageBackground } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, ActivityIndicator, TextInput, Button, ImageBackground, InteractionManager } from 'react-native';
 import theme from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert } from '../utils/alert';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { createAcademia, createAcademiaAdmin, getSystemDashboardStats } from '../services/userService';
+import { listAllExercicios } from '../services/exerciciosService';
 import { isValidEmail } from '../utils/validation';
 import CardMedia from '../components/CardMedia';
 
@@ -44,10 +44,27 @@ export default function SystemAdminHome({ navigation }) {
   const [nomeAdminAcademia, setNomeAdminAcademia] = useState('');
   const [emailAdminAcademia, setEmailAdminAcademia] = useState('');
   const [academiaSelecionada, setAcademiaSelecionada] = useState('');
+  const [buscaAcademiaAdmin, setBuscaAcademiaAdmin] = useState('');
+  const [academiaSelecionadaInfo, setAcademiaSelecionadaInfo] = useState(null);
+  const navigateGuardRef = useRef(false);
+  const [exerciciosPadraoCount, setExerciciosPadraoCount] = useState(0);
+  const [exerciciosAcademiaCount, setExerciciosAcademiaCount] = useState(0);
 
   useEffect(() => {
-    loadStats();
+    loadDashboard();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadExerciciosResumoSistema();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  async function loadDashboard() {
+    await Promise.all([loadStats(), loadExerciciosResumoSistema()]);
+  }
 
   async function loadStats() {
     try {
@@ -57,6 +74,19 @@ export default function SystemAdminHome({ navigation }) {
       Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível carregar os indicadores do sistema.'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadExerciciosResumoSistema() {
+    try {
+      const list = await listAllExercicios();
+      const padrao = list.filter((item) => item?.is_padrao === true).length;
+      const academia = list.filter((item) => item?.is_padrao !== true).length;
+      setExerciciosPadraoCount(padrao);
+      setExerciciosAcademiaCount(academia);
+    } catch (error) {
+      setExerciciosPadraoCount(0);
+      setExerciciosAcademiaCount(0);
     }
   }
 
@@ -74,7 +104,7 @@ export default function SystemAdminHome({ navigation }) {
     try {
       await createAcademia({ nome: nomeAcademia });
       setNomeAcademia('');
-      await loadStats();
+      await loadDashboard();
       Alert.alert('Sucesso', 'Academia cadastrada com sucesso');
     } catch (error) {
       Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível cadastrar a academia.'));
@@ -97,7 +127,9 @@ export default function SystemAdminHome({ navigation }) {
       setNomeAdminAcademia('');
       setEmailAdminAcademia('');
       setAcademiaSelecionada('');
-      await loadStats();
+      setBuscaAcademiaAdmin('');
+      setAcademiaSelecionadaInfo(null);
+      await loadDashboard();
       Alert.alert('Sucesso', 'Administrador da academia criado com sucesso');
     } catch (error) {
       Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível criar o administrador da academia.'));
@@ -106,6 +138,32 @@ export default function SystemAdminHome({ navigation }) {
 
   const resumo = stats?.resumo || {};
   const porAcademia = stats?.por_academia || [];
+  const academiasEncontradas = useMemo(() => {
+    const termo = String(buscaAcademiaAdmin || '').trim().toLowerCase();
+    if (termo.length < 2) return [];
+
+    return porAcademia
+      .filter((item) => String(item?.academia_nome || '').toLowerCase().includes(termo))
+      .slice(0, 8);
+  }, [porAcademia, buscaAcademiaAdmin]);
+
+  function handleSelecionarAcademia(item) {
+    setAcademiaSelecionada(item.academia_id);
+    setAcademiaSelecionadaInfo(item);
+    setBuscaAcademiaAdmin('');
+  }
+
+  function handleOpenGerenciarExercicios() {
+    if (navigateGuardRef.current) return;
+    navigateGuardRef.current = true;
+
+    InteractionManager.runAfterInteractions(() => {
+      navigation.navigate('GerenciarExercicios');
+      setTimeout(() => {
+        navigateGuardRef.current = false;
+      }, 250);
+    });
+  }
 
   return (
     <View style={styles.container}>
@@ -173,20 +231,76 @@ export default function SystemAdminHome({ navigation }) {
                   autoCapitalize="none"
                   keyboardType="email-address"
                 />
-                <View style={styles.pickerContainer}>
-                  <Picker selectedValue={academiaSelecionada} onValueChange={setAcademiaSelecionada} style={styles.picker}>
-                    <Picker.Item label="Selecione a academia" value="" />
-                    {porAcademia.map((item) => (
-                      <Picker.Item key={item.academia_id} label={item.academia_nome} value={item.academia_id} />
+                <TextInput
+                  placeholder="Digite o nome da academia"
+                  value={buscaAcademiaAdmin}
+                  onChangeText={(value) => {
+                    setBuscaAcademiaAdmin(value);
+                    setAcademiaSelecionada('');
+                    setAcademiaSelecionadaInfo(null);
+                  }}
+                  style={styles.input}
+                  autoCapitalize="words"
+                />
+                <Text style={styles.helperText}>Digite pelo menos 2 letras para buscar.</Text>
+
+                {academiasEncontradas.length > 0 && (
+                  <View style={styles.academiasSugestoesBox}>
+                    {academiasEncontradas.map((item) => (
+                      <TouchableOpacity
+                        key={item.academia_id}
+                        style={styles.academiaSugestaoItem}
+                        onPress={() => handleSelecionarAcademia(item)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.academiaSugestaoNome}>{item.academia_nome}</Text>
+                        <Text style={styles.academiaSugestaoMeta}>Alunos: {item.alunos} • Professores: {item.professores}</Text>
+                      </TouchableOpacity>
                     ))}
-                  </Picker>
-                </View>
+                  </View>
+                )}
+
+                {academiaSelecionadaInfo && (
+                  <View style={styles.academiaSelecionadaBox}>
+                    <Text style={styles.academiaSelecionadaText}>Selecionada: {academiaSelecionadaInfo.academia_nome}</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setBuscaAcademiaAdmin('');
+                        setAcademiaSelecionada('');
+                        setAcademiaSelecionadaInfo(null);
+                      }}
+                    >
+                      <Text style={styles.academiaSelecionadaRemover}>Limpar</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <Button
                   title="Criar Admin da Academia"
                   onPress={handleCreateAdminAcademia}
                   disabled={!nomeAdminAcademia.trim() || !emailAdminAcademia.trim() || !academiaSelecionada}
                 />
               </View>
+
+              <Pressable
+                style={({ pressed }) => [styles.exerciseCard, pressed && styles.exerciseCardPressed]}
+                onPress={handleOpenGerenciarExercicios}
+              >
+                <CardMedia variant="exercicio" label="BANCO DE EXERCÍCIOS" compact />
+                <View style={styles.exerciseCardHeader}>
+                  <Text style={styles.exerciseCardTitle}>Gerenciar Banco de Exercícios</Text>
+                  <Text style={styles.exerciseCardArrow}>›</Text>
+                </View>
+                <View style={styles.exerciseMetricsRow}>
+                  <View style={styles.exerciseMetricBox}>
+                    <Text style={styles.exerciseMetricValue}>{exerciciosPadraoCount}</Text>
+                    <Text style={styles.exerciseMetricLabel}>Padrão</Text>
+                  </View>
+                  <View style={styles.exerciseMetricBox}>
+                    <Text style={styles.exerciseMetricValue}>{exerciciosAcademiaCount}</Text>
+                    <Text style={styles.exerciseMetricLabel}>Das academias</Text>
+                  </View>
+                </View>
+              </Pressable>
 
               <View style={styles.gridRow}>
                 <InfoCard title="Academias" value={resumo.total_academias || 0} subtitle="Total cadastradas" />
@@ -380,6 +494,57 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 10
   },
+  exerciseCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.md,
+    padding: 14,
+    marginTop: 10
+  },
+  exerciseCardPressed: {
+    opacity: 0.9
+  },
+  exerciseCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10
+  },
+  exerciseCardTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  exerciseCardArrow: {
+    color: theme.colors.muted,
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: -2
+  },
+  exerciseMetricsRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  exerciseMetricBox: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: theme.colors.background
+  },
+  exerciseMetricValue: {
+    color: theme.colors.text,
+    fontWeight: '700',
+    fontSize: theme.fontSizes.lg
+  },
+  exerciseMetricLabel: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    marginTop: 2
+  },
   blockTitle: {
     color: theme.colors.text,
     fontSize: 15,
@@ -399,16 +564,57 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: theme.colors.background
   },
-  pickerContainer: {
+  helperText: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 10
+  },
+  academiasSugestoesBox: {
     borderWidth: 1,
     borderColor: '#e5e7eb',
     borderRadius: theme.radii.sm,
-    marginBottom: 10,
     backgroundColor: theme.colors.background,
+    marginBottom: 10,
     overflow: 'hidden'
   },
-  picker: {
-    width: '100%'
+  academiaSugestaoItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb'
+  },
+  academiaSugestaoNome: {
+    color: theme.colors.text,
+    fontWeight: '600',
+    fontSize: 14
+  },
+  academiaSugestaoMeta: {
+    color: theme.colors.muted,
+    marginTop: 2,
+    fontSize: 12
+  },
+  academiaSelecionadaBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10
+  },
+  academiaSelecionadaText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  academiaSelecionadaRemover: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: '600'
   },
   emptyText: {
     color: theme.colors.muted,

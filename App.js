@@ -1,5 +1,5 @@
 import React, { useState, lazy, Suspense } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeContext, light, dark } from './src/theme';
@@ -19,10 +19,8 @@ const isFirebaseConfigured = () => {
   try {
     const apiKey = readPublicEnv('EXPO_PUBLIC_FIREBASE_API_KEY');
     const appId = readPublicEnv('EXPO_PUBLIC_FIREBASE_APP_ID');
-    console.log('Checking Firebase config:', { hasApiKey: !!apiKey, hasAppId: !!appId });
     return !!(apiKey && appId);
   } catch (e) {
-    console.error('Error checking Firebase config:', e);
     return false;
   }
 };
@@ -58,7 +56,6 @@ export default function App() {
   function toggle() { setTheme((t) => (t === light ? dark : light)); }
 
   const configured = isFirebaseConfigured();
-  console.log('App rendering, Firebase configured:', configured);
 
   // Se Firebase não está configurado, mostra tela de erro SEM carregar as outras telas
   if (!configured) {
@@ -126,11 +123,39 @@ function AppNavigator() {
           <Stack.Screen name="AlunoHome" component={AlunoHome} options={{ title: 'Aluno' }} />
           <Stack.Screen name="TreinoDetail" component={TreinoDetail} options={{ title: 'Treino' }} />
           <Stack.Screen name="ChangePassword" component={ChangePassword} options={{ title: 'Trocar Senha' }} />
-          <Stack.Screen name="GerenciarExercicios" component={GerenciarExercicios} options={{ title: 'Banco de Exercícios' }} />
+          <Stack.Screen
+            name="GerenciarExercicios"
+            component={GerenciarExercicios}
+            options={{
+              headerShown: false,
+              ...(Platform.OS === 'web' ? { animation: 'none' } : {})
+            }}
+          />
           <Stack.Screen name="Notificacoes" component={NotificacoesScreen} options={{ title: 'Notificações' }} />
-          <Stack.Screen name="AlunosList" component={AlunosListScreen} options={{ title: 'Alunos Cadastrados' }} />
-          <Stack.Screen name="ProfessoresList" component={ProfessoresListScreen} options={{ title: 'Professores Cadastrados' }} />
-          <Stack.Screen name="TreinosList" component={TreinosListScreen} options={{ title: 'Treinos' }} />
+          <Stack.Screen
+            name="AlunosList"
+            component={AlunosListScreen}
+            options={{
+              headerShown: false,
+              ...(Platform.OS === 'web' ? { animation: 'none' } : {})
+            }}
+          />
+          <Stack.Screen
+            name="ProfessoresList"
+            component={ProfessoresListScreen}
+            options={{
+              headerShown: false,
+              ...(Platform.OS === 'web' ? { animation: 'none' } : {})
+            }}
+          />
+          <Stack.Screen
+            name="TreinosList"
+            component={TreinosListScreen}
+            options={{
+              headerShown: false,
+              ...(Platform.OS === 'web' ? { animation: 'none' } : {})
+            }}
+          />
           <Stack.Screen name="RelatorioEsforco" component={RelatorioEsforcoScreen} options={{ title: 'Relatório de Esforço' }} />
         </Stack.Navigator>
       </NavigationContainer>

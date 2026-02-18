@@ -27,7 +27,6 @@ export function useJWT() {
         const now = Math.floor(Date.now() / 1000);
         setIsValid(payload.exp > now);
       } catch (error) {
-        console.error('Erro ao parsear JWT:', error);
         setIsValid(false);
       }
     } else {
@@ -41,7 +40,6 @@ export function useJWT() {
       const newToken = await authRefreshToken();
       return newToken;
     } catch (error) {
-      console.error('Erro ao refresh token:', error);
       throw error;
     }
   };
@@ -50,7 +48,6 @@ export function useJWT() {
     try {
       return await getValidToken();
     } catch (error) {
-      console.error('Erro ao obter token válido:', error);
       throw error;
     }
   };

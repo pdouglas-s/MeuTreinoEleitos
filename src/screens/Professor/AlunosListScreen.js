@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableWithoutFeedback } from 'react-native';
 import theme from '../../theme';
 import { deleteAlunoProfile, listAllAlunos, updateManagedUserProfile } from '../../services/userService';
 import { Alert } from '../../utils/alert';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 
-export default function AlunosListScreen() {
+export default function AlunosListScreen({ navigation }) {
   const [alunos, setAlunos] = useState([]);
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
@@ -53,7 +53,7 @@ export default function AlunosListScreen() {
   async function salvarEdicao(alunoId) {
     try {
       await updateManagedUserProfile({ userId: alunoId, nome: editNome });
-      Alert.alert('Sucesso', 'Aluno atualizado com sucesso');
+      Alert.alert('Sucesso', 'Aluno atualizado com sucesso.');
       cancelarEdicao();
       await carregarAlunos();
     } catch (err) {
@@ -72,7 +72,7 @@ export default function AlunosListScreen() {
 
     try {
       await deleteAlunoProfile(aluno.id);
-      Alert.alert('Sucesso', 'Aluno excluído com sucesso');
+      Alert.alert('Sucesso', 'Aluno excluído com sucesso.');
       if (selecionadoId === aluno.id) setSelecionadoId('');
       await carregarAlunos();
     } catch (err) {
@@ -91,6 +91,11 @@ export default function AlunosListScreen() {
 
   return (
     <View style={styles.container}>
+      <TouchableWithoutFeedback onPress={() => navigation.goBack()}>
+        <View style={styles.backBtn}>
+          <Text style={styles.backBtnText}>← Voltar ao painel</Text>
+        </View>
+      </TouchableWithoutFeedback>
       <Text style={styles.title}>Alunos Cadastrados</Text>
       <TextInput
         placeholder="Buscar por nome ou e-mail"
@@ -104,45 +109,51 @@ export default function AlunosListScreen() {
         data={alunosFiltrados}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.itemRow}
-            activeOpacity={0.85}
-            onPress={() => setSelecionadoId((prev) => (prev === item.id ? '' : item.id))}
-          >
-            <Text style={styles.itemNome}>{item.nome}</Text>
-            <Text style={styles.itemEmail}>{item.email}</Text>
+          <TouchableWithoutFeedback onPress={() => setSelecionadoId((prev) => (prev === item.id ? '' : item.id))}>
+            <View style={styles.itemRow}>
+              <Text style={styles.itemNome}>{item.nome}</Text>
+              <Text style={styles.itemEmail}>{item.email}</Text>
 
-            {selecionadoId === item.id && editandoId !== item.id && (
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.editBtn} onPress={() => iniciarEdicao(item)}>
-                  <Text style={styles.editBtnText}>✏️ Editar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => excluirAluno(item)}>
-                  <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {editandoId === item.id && (
-              <View style={styles.editBox}>
-                <TextInput
-                  placeholder="Nome"
-                  style={styles.inputEdit}
-                  value={editNome}
-                  onChangeText={setEditNome}
-                />
-                <Text style={styles.editHint}>E-mail do aluno não pode ser alterado.</Text>
+              {selecionadoId === item.id && editandoId !== item.id && (
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity style={styles.saveBtn} onPress={() => salvarEdicao(item.id)}>
-                    <Text style={styles.saveBtnText}>Salvar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.cancelBtn} onPress={cancelarEdicao}>
-                    <Text style={styles.cancelBtnText}>Cancelar</Text>
-                  </TouchableOpacity>
+                  <TouchableWithoutFeedback onPress={() => iniciarEdicao(item)}>
+                    <View style={styles.editBtn}>
+                      <Text style={styles.editBtnText}>✏️ Editar</Text>
+                    </View>
+                  </TouchableWithoutFeedback>
+                  <TouchableWithoutFeedback onPress={() => excluirAluno(item)}>
+                    <View style={styles.deleteBtn}>
+                      <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
+                    </View>
+                  </TouchableWithoutFeedback>
                 </View>
-              </View>
-            )}
-          </TouchableOpacity>
+              )}
+
+              {editandoId === item.id && (
+                <View style={styles.editBox}>
+                  <TextInput
+                    placeholder="Nome"
+                    style={styles.inputEdit}
+                    value={editNome}
+                    onChangeText={setEditNome}
+                  />
+                  <Text style={styles.editHint}>E-mail do aluno não pode ser alterado.</Text>
+                  <View style={styles.actionsRow}>
+                    <TouchableWithoutFeedback onPress={() => salvarEdicao(item.id)}>
+                      <View style={styles.saveBtn}>
+                        <Text style={styles.saveBtnText}>Salvar</Text>
+                      </View>
+                    </TouchableWithoutFeedback>
+                    <TouchableWithoutFeedback onPress={cancelarEdicao}>
+                      <View style={styles.cancelBtn}>
+                        <Text style={styles.cancelBtnText}>Cancelar</Text>
+                      </View>
+                    </TouchableWithoutFeedback>
+                  </View>
+                </View>
+              )}
+            </View>
+          </TouchableWithoutFeedback>
         )}
         ListEmptyComponent={<Text style={styles.emptyHint}>Nenhum aluno encontrado.</Text>}
       />
@@ -172,6 +183,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 10
+  },
+  backBtn: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.card,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10
+  },
+  backBtnText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600'
   },
   input: {
     borderWidth: 1,

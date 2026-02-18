@@ -44,8 +44,8 @@ service cloud.firestore {
     }
 
     function isSameAcademia(academiaId) {
-      return academiaId is string
-        && myAcademiaId() is string
+      return academiaId != null
+        && myAcademiaId() != null
         && academiaId == myAcademiaId();
     }
 
@@ -56,6 +56,11 @@ service cloud.firestore {
 
     function treinoDocById(treinoId) {
       return get(/databases/$(database)/documents/treinos/$(treinoId)).data;
+    }
+
+    function exercicioDataDaMinhaAcademia(exercicioData) {
+      return exercicioData.academia_id != null
+        && isSameAcademia(exercicioData.academia_id);
     }
 
     function canReadTreinoData(treinoData) {
@@ -234,7 +239,29 @@ service cloud.firestore {
 
     match /exercicios/{docId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && isAcademyStaff();
+
+      allow create: if request.auth != null && (
+        (
+          isSystemAdmin()
+          && request.resource.data.is_padrao == true
+        )
+        || (
+          isAcademyStaff()
+          &&
+          request.resource.data.is_padrao != true
+          && exercicioDataDaMinhaAcademia(request.resource.data)
+        )
+      );
+
+      allow update, delete: if request.auth != null && (
+        isSystemAdmin()
+        || (
+          isAcademyStaff()
+          &&
+          resource.data.is_padrao != true
+          && exercicioDataDaMinhaAcademia(resource.data)
+        )
+      );
     }
 
     match /sessoes_treino/{docId} {

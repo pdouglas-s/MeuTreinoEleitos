@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableWithoutFeedback } from 'react-native';
 import theme from '../../theme';
 import { deleteProfessorProfile, listAllProfessores, updateManagedUserProfile } from '../../services/userService';
 import { Alert } from '../../utils/alert';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 
-export default function ProfessoresListScreen() {
+export default function ProfessoresListScreen({ navigation }) {
   const [professores, setProfessores] = useState([]);
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
@@ -56,7 +56,7 @@ export default function ProfessoresListScreen() {
   async function salvarEdicao(professorId) {
     try {
       await updateManagedUserProfile({ userId: professorId, nome: editNome, email: editEmail });
-      Alert.alert('Sucesso', 'Professor atualizado com sucesso');
+      Alert.alert('Sucesso', 'Professor atualizado com sucesso.');
       cancelarEdicao();
       await carregarProfessores();
     } catch (err) {
@@ -75,7 +75,7 @@ export default function ProfessoresListScreen() {
 
     try {
       await deleteProfessorProfile(professor.id);
-      Alert.alert('Sucesso', 'Professor excluído com sucesso');
+      Alert.alert('Sucesso', 'Professor excluído com sucesso.');
       if (selecionadoId === professor.id) setSelecionadoId('');
       await carregarProfessores();
     } catch (err) {
@@ -94,6 +94,11 @@ export default function ProfessoresListScreen() {
 
   return (
     <View style={styles.container}>
+      <TouchableWithoutFeedback onPress={() => navigation.goBack()}>
+        <View style={styles.backBtn}>
+          <Text style={styles.backBtnText}>← Voltar ao painel</Text>
+        </View>
+      </TouchableWithoutFeedback>
       <Text style={styles.title}>Professores Cadastrados</Text>
       <TextInput
         placeholder="Buscar por nome ou e-mail"
@@ -107,52 +112,58 @@ export default function ProfessoresListScreen() {
         data={professoresFiltrados}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.itemRow}
-            activeOpacity={0.85}
-            onPress={() => setSelecionadoId((prev) => (prev === item.id ? '' : item.id))}
-          >
-            <Text style={styles.itemNome}>{item.nome}</Text>
-            <Text style={styles.itemEmail}>{item.email}</Text>
+          <TouchableWithoutFeedback onPress={() => setSelecionadoId((prev) => (prev === item.id ? '' : item.id))}>
+            <View style={styles.itemRow}>
+              <Text style={styles.itemNome}>{item.nome}</Text>
+              <Text style={styles.itemEmail}>{item.email}</Text>
 
-            {selecionadoId === item.id && editandoId !== item.id && (
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.editBtn} onPress={() => iniciarEdicao(item)}>
-                  <Text style={styles.editBtnText}>✏️ Editar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => excluirProfessor(item)}>
-                  <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {editandoId === item.id && (
-              <View style={styles.editBox}>
-                <TextInput
-                  placeholder="Nome"
-                  style={styles.inputEdit}
-                  value={editNome}
-                  onChangeText={setEditNome}
-                />
-                <TextInput
-                  placeholder="E-mail"
-                  style={styles.inputEdit}
-                  value={editEmail}
-                  onChangeText={setEditEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                />
+              {selecionadoId === item.id && editandoId !== item.id && (
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity style={styles.saveBtn} onPress={() => salvarEdicao(item.id)}>
-                    <Text style={styles.saveBtnText}>Salvar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.cancelBtn} onPress={cancelarEdicao}>
-                    <Text style={styles.cancelBtnText}>Cancelar</Text>
-                  </TouchableOpacity>
+                  <TouchableWithoutFeedback onPress={() => iniciarEdicao(item)}>
+                    <View style={styles.editBtn}>
+                      <Text style={styles.editBtnText}>✏️ Editar</Text>
+                    </View>
+                  </TouchableWithoutFeedback>
+                  <TouchableWithoutFeedback onPress={() => excluirProfessor(item)}>
+                    <View style={styles.deleteBtn}>
+                      <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
+                    </View>
+                  </TouchableWithoutFeedback>
                 </View>
-              </View>
-            )}
-          </TouchableOpacity>
+              )}
+
+              {editandoId === item.id && (
+                <View style={styles.editBox}>
+                  <TextInput
+                    placeholder="Nome"
+                    style={styles.inputEdit}
+                    value={editNome}
+                    onChangeText={setEditNome}
+                  />
+                  <TextInput
+                    placeholder="E-mail"
+                    style={styles.inputEdit}
+                    value={editEmail}
+                    onChangeText={setEditEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                  <View style={styles.actionsRow}>
+                    <TouchableWithoutFeedback onPress={() => salvarEdicao(item.id)}>
+                      <View style={styles.saveBtn}>
+                        <Text style={styles.saveBtnText}>Salvar</Text>
+                      </View>
+                    </TouchableWithoutFeedback>
+                    <TouchableWithoutFeedback onPress={cancelarEdicao}>
+                      <View style={styles.cancelBtn}>
+                        <Text style={styles.cancelBtnText}>Cancelar</Text>
+                      </View>
+                    </TouchableWithoutFeedback>
+                  </View>
+                </View>
+              )}
+            </View>
+          </TouchableWithoutFeedback>
         )}
         ListEmptyComponent={<Text style={styles.emptyHint}>Nenhum professor encontrado.</Text>}
       />
@@ -182,6 +193,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.text,
     marginBottom: 10
+  },
+  backBtn: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.card,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 10
+  },
+  backBtnText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600'
   },
   input: {
     borderWidth: 1,
