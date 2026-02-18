@@ -1,12 +1,15 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList, RefreshControl, Share } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList, RefreshControl, Share, ImageBackground } from 'react-native';
 import theme from '../../theme';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
 import { gerarRelatorioEsforcoPorCategoria } from '../../services/notificacoesService';
+import CardMedia from '../../components/CardMedia';
 
 const PERIODOS = [7, 30, 90];
+const relatorioHeroImage = 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1500&q=80';
+const relatorioBackgroundImage = 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?auto=format&fit=crop&w=1700&q=80';
 
 const NIVEL_LABEL = {
   1: 'Muito leve',
@@ -32,6 +35,8 @@ function gerarResumoCompartilhamento(relatorio, periodoDias) {
   linhas.push(`📊 Relatório de esforço (${periodoDias} dias)`);
   linhas.push(`Treinos finalizados: ${relatorio?.totalNotificacoesConsideradas || 0}`);
   linhas.push(`Média geral: ${formatMedia(relatorio?.mediaGeral)}`);
+  linhas.push(`Tempo médio de treino: ${relatorio?.tempoMedioFormatado || '—'}`);
+  linhas.push(`Tempo total no período: ${relatorio?.tempoTotalFormatado || '00:00:00'}`);
   linhas.push('');
   linhas.push('Categorias musculares:');
 
@@ -40,7 +45,7 @@ function gerarResumoCompartilhamento(relatorio, periodoDias) {
     linhas.push('- Sem dados no período');
   } else {
     categorias.slice(0, 8).forEach((item) => {
-      linhas.push(`- ${item.categoria}: ${item.total_treinos} treinos | média ${formatMedia(item.media_esforco)}`);
+      linhas.push(`- ${item.categoria}: ${item.total_treinos} treinos | média ${formatMedia(item.media_esforco)} | tempo médio ${item.tempo_medio_formatado || '—'}`);
     });
   }
 
@@ -60,6 +65,11 @@ export default function RelatorioEsforcoScreen() {
     periodoDias: 30,
     totalNotificacoesConsideradas: 0,
     mediaGeral: null,
+    tempoTotalSegundos: 0,
+    tempoTotalFormatado: '00:00:00',
+    tempoMedioSegundos: 0,
+    tempoMedioFormatado: '—',
+    totalTreinosComTempo: 0,
     distribuicaoGeral: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
     categorias: []
   });
@@ -97,8 +107,8 @@ export default function RelatorioEsforcoScreen() {
   }, [carregarRelatorio, periodoDias]);
 
   const subtitle = useMemo(() => {
-    if (isAcademyAdmin) return 'Baseado nas notificações de treinos finalizados da academia';
-    return 'Baseado nas notificações de treinos finalizados dos seus alunos';
+    if (isAcademyAdmin) return 'Base de dados da academia';
+    return 'Base de dados dos seus alunos';
   }, [isAcademyAdmin]);
 
   function handleRefresh() {
@@ -140,14 +150,32 @@ export default function RelatorioEsforcoScreen() {
 
   return (
     <View style={styles.container}>
+      <ImageBackground
+        source={{ uri: relatorioBackgroundImage }}
+        style={styles.screenBackground}
+        imageStyle={styles.screenBackgroundImage}
+      >
+        <View style={styles.screenBackgroundTint} />
+      </ImageBackground>
+
       <FlatList
         data={relatorio.categorias}
         keyExtractor={(item) => item.categoria}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         ListHeaderComponent={(
           <View>
+            <ImageBackground source={{ uri: relatorioHeroImage }} style={styles.heroCard} imageStyle={styles.heroCardImage}>
+              <View style={styles.heroCardTint} />
+              <View style={styles.heroCardContent}>
+                <Text style={styles.heroTag}>ANÁLISE GERENCIAL</Text>
+                <Text style={styles.heroTitle}>Relatório de esforço e tempo</Text>
+                <Text style={styles.heroHint}>Visão consolidada para decisões da equipe</Text>
+              </View>
+            </ImageBackground>
+
             <View style={styles.card}>
-              <Text style={styles.title}>Relatório de Esforço por Categoria</Text>
+              <CardMedia variant="relatorio" label="VISÃO CONSOLIDADA" />
+              <Text style={styles.title}>Relatório por categoria</Text>
               <Text style={styles.subtitle}>{subtitle}</Text>
 
               <View style={styles.periodoRow}>
@@ -165,12 +193,27 @@ export default function RelatorioEsforcoScreen() {
 
             <View style={styles.statsRow}>
               <View style={styles.statCard}>
+                <CardMedia variant="treino" label="TREINOS" compact />
                 <Text style={styles.statValue}>{relatorio.totalNotificacoesConsideradas}</Text>
                 <Text style={styles.statLabel}>Treinos finalizados</Text>
               </View>
               <View style={styles.statCard}>
+                <CardMedia variant="progresso" label="ESFORÇO" compact />
                 <Text style={styles.statValue}>{formatMedia(relatorio.mediaGeral)}</Text>
                 <Text style={styles.statLabel}>Média geral</Text>
+              </View>
+            </View>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <CardMedia variant="treino" label="TEMPO MÉDIO" compact />
+                <Text style={styles.statValue}>{relatorio.tempoMedioFormatado || '—'}</Text>
+                <Text style={styles.statLabel}>Tempo médio de treino</Text>
+              </View>
+              <View style={styles.statCard}>
+                <CardMedia variant="academia" label="TEMPO TOTAL" compact />
+                <Text style={styles.statValue}>{relatorio.tempoTotalFormatado || '00:00:00'}</Text>
+                <Text style={styles.statLabel}>Tempo total no período</Text>
               </View>
             </View>
 
@@ -179,12 +222,13 @@ export default function RelatorioEsforcoScreen() {
             </TouchableOpacity>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Distribuição geral por esforço</Text>
+              <CardMedia variant="progresso" label="DISTRIBUIÇÃO" compact />
+              <Text style={styles.sectionTitle}>Distribuição de esforço</Text>
               <Text style={styles.distribuicaoTexto}>{renderDistribuicao(relatorio.distribuicaoGeral)}</Text>
               <Text style={styles.muted}>1={NIVEL_LABEL[1]} • 3={NIVEL_LABEL[3]} • 5={NIVEL_LABEL[5]}</Text>
             </View>
 
-            <Text style={styles.sectionTitle}>Categorias musculares</Text>
+            <Text style={styles.sectionTitle}>Categorias</Text>
           </View>
         )}
         ListEmptyComponent={(
@@ -194,10 +238,10 @@ export default function RelatorioEsforcoScreen() {
         )}
         renderItem={({ item }) => (
           <View style={styles.card}>
+            <CardMedia variant="exercicio" label={String(item.categoria || 'CATEGORIA').toUpperCase()} compact />
             <Text style={styles.categoriaTitulo}>{item.categoria}</Text>
-            <Text style={styles.categoriaLinha}>Treinos: {item.total_treinos}</Text>
-            <Text style={styles.categoriaLinha}>Média de esforço: {formatMedia(item.media_esforco)}</Text>
-            <Text style={styles.categoriaLinha}>{renderDistribuicao(item.distribuicao)}</Text>
+            <Text style={styles.categoriaResumo}>Treinos: {item.total_treinos}  •  Esforço: {formatMedia(item.media_esforco)}  •  Tempo: {item.tempo_medio_formatado || '—'}</Text>
+            <Text style={styles.categoriaLinha}>Níveis: {renderDistribuicao(item.distribuicao)}</Text>
           </View>
         )}
       />
@@ -210,6 +254,53 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
     padding: 12
+  },
+  screenBackground: {
+    ...StyleSheet.absoluteFillObject
+  },
+  screenBackgroundImage: {
+    opacity: 0.12
+  },
+  screenBackgroundTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0f172a',
+    opacity: 0.08
+  },
+  heroCard: {
+    minHeight: 132,
+    borderRadius: theme.radii.lg,
+    overflow: 'hidden',
+    marginBottom: 10,
+    justifyContent: 'flex-end'
+  },
+  heroCardImage: {
+    borderRadius: theme.radii.lg
+  },
+  heroCardTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.text,
+    opacity: 0.56
+  },
+  heroCardContent: {
+    padding: 12,
+    backgroundColor: 'rgba(17, 24, 39, 0.32)'
+  },
+  heroTag: {
+    color: theme.colors.card,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8
+  },
+  heroTitle: {
+    color: theme.colors.card,
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 4
+  },
+  heroHint: {
+    color: theme.colors.card,
+    fontSize: 12,
+    marginTop: 4
   },
   center: {
     justifyContent: 'center',
@@ -314,6 +405,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4
+  },
+  categoriaResumo: {
+    color: theme.colors.text,
+    fontSize: 13,
+    marginTop: 2
   },
   categoriaLinha: {
     color: theme.colors.text,

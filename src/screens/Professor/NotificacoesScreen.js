@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../theme';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -7,6 +7,14 @@ import { listarNotificacoesProfessor, listarNotificacoesAluno, listarNotificacoe
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
 import { auth, db } from '../../firebase/config';
+import CardMedia from '../../components/CardMedia';
+
+const alunoNotifsHeroImage = 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1400&q=80';
+const alunoNotifsBackgroundImage = 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1600&q=80';
+const professorNotifsHeroImage = 'https://images.unsplash.com/photo-1571019613914-85f342c55f1c?auto=format&fit=crop&w=1400&q=80';
+const professorNotifsBackgroundImage = 'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1600&q=80';
+const academiaNotifsHeroImage = 'https://images.unsplash.com/photo-1593079831268-3381b0db4a77?auto=format&fit=crop&w=1400&q=80';
+const academiaNotifsBackgroundImage = 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1600&q=80';
 
 export default function NotificacoesScreen({ navigation }) {
   const { profile } = useAuth();
@@ -16,6 +24,27 @@ export default function NotificacoesScreen({ navigation }) {
   const userId = auth.currentUser?.uid || profile?.id || profile?.uid || null;
   const isAcademyAdmin = profile?.role === 'admin_academia';
   const isProfessor = ['professor', 'admin_sistema'].includes(profile?.role);
+  const isAluno = !isAcademyAdmin && !isProfessor;
+  const roleHeroImage = isAluno
+    ? alunoNotifsHeroImage
+    : (isAcademyAdmin ? academiaNotifsHeroImage : professorNotifsHeroImage);
+  const roleBackgroundImage = isAluno
+    ? alunoNotifsBackgroundImage
+    : (isAcademyAdmin ? academiaNotifsBackgroundImage : professorNotifsBackgroundImage);
+  const roleHeroTag = isAluno
+    ? 'SEU FEED'
+    : (isAcademyAdmin ? 'VISÃO DA ACADEMIA' : 'PAINEL DO PROFESSOR');
+  const roleHeroTitle = isAluno
+    ? 'Notificações de treino'
+    : (isAcademyAdmin ? 'Atividades da academia' : 'Atividades dos alunos');
+  const roleHeroHint = isAluno
+    ? 'Acompanhe atualizações e progresso em tempo real'
+    : (isAcademyAdmin
+      ? 'Acompanhe o que está acontecendo com treinos e equipe'
+      : 'Acompanhe início, progresso e finalização dos treinos');
+  const roleHeaderTitle = isAluno
+    ? 'Seu Feed de Treino'
+    : (isAcademyAdmin ? 'Feed da Academia' : 'Feed do Professor');
 
   useEffect(() => {
     if (!userId) {
@@ -137,6 +166,24 @@ export default function NotificacoesScreen({ navigation }) {
   }
 
   function getMensagemExibicao(item) {
+    if (isAluno) {
+      const treinoNome = String(item?.dados?.treino_nome || 'Treino').trim();
+      const professorNome = String(item?.dados?.professor_nome || 'Professor').trim();
+
+      switch (item?.tipo) {
+        case 'treino_associado':
+          return `${professorNome} liberou o treino "${treinoNome}" para você`;
+        case 'treino_atualizado':
+          return `Seu treino "${treinoNome}" foi atualizado`;
+        case 'treino_excluido':
+          return `O treino "${treinoNome}" foi removido da sua lista`;
+        case 'resumo_semanal':
+          return 'Seu resumo semanal está disponível';
+        default:
+          return item?.mensagem || '';
+      }
+    }
+
     if (!isAcademyAdmin) return item?.mensagem || '';
 
     if (item?.tipo === 'treino_associado') {
@@ -164,9 +211,26 @@ export default function NotificacoesScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <ImageBackground
+        source={{ uri: roleBackgroundImage }}
+        style={styles.screenBackground}
+        imageStyle={styles.screenBackgroundImage}
+      >
+        <View style={styles.screenBackgroundTint} />
+      </ImageBackground>
+
+      <ImageBackground source={{ uri: roleHeroImage }} style={styles.heroCard} imageStyle={styles.heroCardImage}>
+        <View style={styles.heroCardTint} />
+        <View style={styles.heroCardContent}>
+          <Text style={styles.heroTag}>{roleHeroTag}</Text>
+          <Text style={styles.heroTitle}>{roleHeroTitle}</Text>
+          <Text style={styles.heroHint}>{roleHeroHint}</Text>
+        </View>
+      </ImageBackground>
+
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Notificações</Text>
+          <Text style={styles.title}>{roleHeaderTitle}</Text>
           {naoLidas > 0 && (
             <Text style={styles.subtitle}>{naoLidas} não lida{naoLidas > 1 ? 's' : ''}</Text>
           )}
@@ -180,10 +244,12 @@ export default function NotificacoesScreen({ navigation }) {
 
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
+          <CardMedia variant="notificacao" label="TOTAL" compact />
           <Text style={styles.statValue}>{notificacoes.length}</Text>
           <Text style={styles.statLabel}>Total</Text>
         </View>
         <View style={styles.statCard}>
+          <CardMedia variant="progresso" label="NÃO LIDAS" compact />
           <Text style={styles.statValue}>{naoLidas}</Text>
           <Text style={styles.statLabel}>Não lidas</Text>
         </View>
@@ -209,6 +275,9 @@ export default function NotificacoesScreen({ navigation }) {
                 onPress={() => handleMarcarLida(item.id, item.lida)}
                 activeOpacity={0.7}
               >
+                <View style={styles.notifMediaWrap}>
+                  <CardMedia variant="notificacao" label={String(item?.tipo || 'atividade').replace(/_/g, ' ').toUpperCase()} compact />
+                </View>
                 <View style={[styles.iconContainer, { backgroundColor: icone.color + '20' }]}>
                   <Ionicons name={icone.name} size={24} color={icone.color} />
                 </View>
@@ -230,6 +299,53 @@ export default function NotificacoesScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background, padding: 12 },
+  screenBackground: {
+    ...StyleSheet.absoluteFillObject
+  },
+  screenBackgroundImage: {
+    opacity: 0.12
+  },
+  screenBackgroundTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0f172a',
+    opacity: 0.08
+  },
+  heroCard: {
+    minHeight: 128,
+    borderRadius: theme.radii.lg,
+    overflow: 'hidden',
+    marginBottom: 10,
+    justifyContent: 'flex-end'
+  },
+  heroCardImage: {
+    borderRadius: theme.radii.lg
+  },
+  heroCardTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.text,
+    opacity: 0.54
+  },
+  heroCardContent: {
+    padding: 12,
+    backgroundColor: 'rgba(17, 24, 39, 0.3)'
+  },
+  heroTag: {
+    color: theme.colors.card,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    fontWeight: '700'
+  },
+  heroTitle: {
+    color: theme.colors.card,
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 4
+  },
+  heroHint: {
+    color: theme.colors.card,
+    fontSize: 12,
+    marginTop: 4
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -298,6 +414,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1
+  },
+  notifMediaWrap: {
+    width: 84,
+    marginRight: 8
   },
   notifCardUnread: {
     backgroundColor: theme.colors.background,

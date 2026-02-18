@@ -11,6 +11,57 @@ exports[`ProfessorHome render snapshot (flow básico) 1`] = `
   }
 >
   <View
+    accessibilityIgnoresInvertColors={true}
+    style={
+      {
+        "bottom": 0,
+        "left": 0,
+        "position": "absolute",
+        "right": 0,
+        "top": 0,
+      }
+    }
+  >
+    <Image
+      source={
+        {
+          "uri": "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?auto=format&fit=crop&w=1600&q=80",
+        }
+      }
+      style={
+        [
+          {
+            "bottom": 0,
+            "left": 0,
+            "position": "absolute",
+            "right": 0,
+            "top": 0,
+          },
+          {
+            "height": undefined,
+            "width": undefined,
+          },
+          {
+            "opacity": 0.18,
+          },
+        ]
+      }
+    />
+    <View
+      style={
+        {
+          "backgroundColor": "#0f172a",
+          "bottom": 0,
+          "left": 0,
+          "opacity": 0.12,
+          "position": "absolute",
+          "right": 0,
+          "top": 0,
+        }
+      }
+    />
+  </View>
+  <View
     style={
       {
         "alignItems": "center",
@@ -154,6 +205,104 @@ exports[`ProfessorHome render snapshot (flow básico) 1`] = `
           🚪 Sair
         </Text>
       </View>
+    </View>
+  </View>
+  <View
+    accessibilityIgnoresInvertColors={true}
+    style={
+      {
+        "borderRadius": 8,
+        "height": 140,
+        "justifyContent": "flex-end",
+        "marginBottom": 12,
+        "overflow": "hidden",
+      }
+    }
+  >
+    <Image
+      source={
+        {
+          "uri": "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?auto=format&fit=crop&w=1600&q=80",
+        }
+      }
+      style={
+        [
+          {
+            "bottom": 0,
+            "left": 0,
+            "position": "absolute",
+            "right": 0,
+            "top": 0,
+          },
+          {
+            "height": 140,
+            "width": undefined,
+          },
+          {
+            "borderRadius": 8,
+          },
+        ]
+      }
+    />
+    <View
+      style={
+        {
+          "backgroundColor": "#111827",
+          "bottom": 0,
+          "left": 0,
+          "opacity": 0.58,
+          "position": "absolute",
+          "right": 0,
+          "top": 0,
+        }
+      }
+    />
+    <View
+      style={
+        {
+          "backgroundColor": "rgba(17, 24, 39, 0.28)",
+          "paddingHorizontal": 12,
+          "paddingVertical": 10,
+        }
+      }
+    >
+      <Text
+        style={
+          {
+            "color": "#ffffff",
+            "fontSize": 12,
+            "fontWeight": "600",
+          }
+        }
+      >
+        ACADEMIA
+      </Text>
+      <Text
+        style={
+          {
+            "color": "#ffffff",
+            "fontSize": 18,
+            "fontWeight": "700",
+            "marginTop": 4,
+          }
+        }
+      >
+        Gestão moderna de treinos e alunos
+      </Text>
+      <Text
+        style={
+          {
+            "color": "#ffffff",
+            "fontSize": 12,
+            "marginTop": 4,
+          }
+        }
+      >
+        Treinos: 
+        0
+         • Notificações: 
+        0
+      </Text>
     </View>
   </View>
   <View

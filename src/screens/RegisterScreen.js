@@ -7,6 +7,7 @@ import { isValidEmail, isValidPassword, MIN_PASSWORD_LENGTH } from '../utils/val
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { auth } from '../firebase/config';
 import theme from '../theme';
+import CardMedia from '../components/CardMedia';
 
 export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -66,6 +67,7 @@ export default function RegisterScreen({ navigation }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.card}>
+        <CardMedia variant="sistema" label="CADASTRO INICIAL" />
         <Text style={styles.title}>Criar Conta</Text>
         <Text style={styles.subtitle}>Preencha os dados para começar</Text>
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -14,6 +14,7 @@ import { auth, db } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isValidEmail } from '../../utils/validation';
 import { getAuthErrorMessage } from '../../utils/authErrors';
+import CardMedia from '../../components/CardMedia';
 
 export default function ProfessorHome({ navigation }) {
   const { logout, profile } = useAuth();
@@ -51,10 +52,14 @@ export default function ProfessorHome({ navigation }) {
   const canBuildTreinoFicha = isProfessor || isAcademyAdmin;
   const canManageAcademyUsers = isAcademyAdmin;
   const canManageTreinos = isProfessor;
-  const pageTitle = isAcademyAdmin ? 'Área do Admin da Academia' : 'Área do Professor';
+  const pageTitle = isAcademyAdmin ? 'Painel da Academia' : 'Painel do Professor';
   const pageSubtitle = isAcademyAdmin
-    ? `Gestão da academia • ${profile?.nome || ''}`
-    : `Bem-vindo, ${profile?.nome || ''}`;
+    ? 'Gestão da academia'
+    : `Treinos e acompanhamento • ${profile?.nome || ''}`;
+  const heroCardTag = isAcademyAdmin ? 'ACADEMIA' : 'PROFESSOR';
+  const heroCardTitle = isAcademyAdmin
+    ? 'Gestão moderna de treinos e alunos'
+    : 'Acompanhe treinos e evolução dos alunos';
   const emailAlunoInvalido = email.trim().length > 0 && !isValidEmail(email);
   const emailProfessorInvalido = emailProfessor.trim().length > 0 && !isValidEmail(emailProfessor);
   const emailDesbloqueioInvalido = emailDesbloqueio.trim().length > 0 && !isValidEmail(emailDesbloqueio);
@@ -529,6 +534,14 @@ export default function ProfessorHome({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?auto=format&fit=crop&w=1600&q=80' }}
+        style={styles.screenBackground}
+        imageStyle={styles.screenBackgroundImage}
+      >
+        <View style={styles.screenBackgroundTint} />
+      </ImageBackground>
+
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>{pageTitle}</Text>
@@ -555,20 +568,36 @@ export default function ProfessorHome({ navigation }) {
         </View>
       </View>
 
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?auto=format&fit=crop&w=1600&q=80' }}
+        style={styles.heroCard}
+        imageStyle={styles.heroCardImage}
+      >
+        <View style={styles.heroCardTint} />
+        <View style={styles.heroCardContent}>
+          <Text style={styles.heroCardTag}>{heroCardTag}</Text>
+          <Text style={styles.heroCardTitle}>{heroCardTitle}</Text>
+          <Text style={styles.heroCardHint}>Treinos: {treinos.length} • Notificações: {notifCount}</Text>
+        </View>
+      </ImageBackground>
+
       {!isSystemAdmin && <View style={styles.statsRow}>
         {isAcademyAdmin && (
           <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('AlunosList')} activeOpacity={0.8}>
+            <CardMedia variant="aluno" label="ALUNOS" compact />
             <Text style={styles.statValue}>{alunos.length}</Text>
             <Text style={styles.statLabel}>Alunos</Text>
           </TouchableOpacity>
         )}
         {isAcademyAdmin && (
           <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('ProfessoresList')} activeOpacity={0.8}>
+            <CardMedia variant="professor" label="PROFESSORES" compact />
             <Text style={styles.statValue}>{professores.length}</Text>
             <Text style={styles.statLabel}>Professores</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('TreinosList')} activeOpacity={0.8}>
+          <CardMedia variant="treino" label="TREINOS" compact />
           <Text style={styles.statValue}>{treinos.length}</Text>
           <Text style={styles.statLabel}>Treinos</Text>
           <Text style={styles.statMetaText}>📋 Modelos: {treinosModeloCount}</Text>
@@ -582,6 +611,7 @@ export default function ProfessorHome({ navigation }) {
           onPress={() => navigation.navigate('GerenciarExercicios')}
           activeOpacity={0.85}
         >
+          <CardMedia variant="exercicio" label="BANCO DE EXERCÍCIOS" compact />
           <View style={styles.exerciseCardHeader}>
             <Text style={styles.exerciseCardTitle}>Exercícios</Text>
             <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
@@ -602,6 +632,7 @@ export default function ProfessorHome({ navigation }) {
       {!isSystemAdmin && (
         <View style={styles.statsRow}>
           <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Notificacoes')} activeOpacity={0.8}>
+            <CardMedia variant="notificacao" label="NOTIFICAÇÕES" compact />
             <Text style={styles.statValue}>{notifCount}</Text>
             <Text style={styles.statLabel}>Notificações</Text>
           </TouchableOpacity>
@@ -614,6 +645,7 @@ export default function ProfessorHome({ navigation }) {
           onPress={() => navigation.navigate('RelatorioEsforco')}
           activeOpacity={0.85}
         >
+          <CardMedia variant="relatorio" label="RELATÓRIO" compact />
           <View style={styles.reportCardIconWrap}>
             <Ionicons name="bar-chart" size={20} color={theme.colors.primary} />
           </View>
@@ -634,6 +666,7 @@ export default function ProfessorHome({ navigation }) {
 
       {isSystemAdmin && (
         <View style={styles.cardBlock}>
+          <CardMedia variant="sistema" label="ADMINISTRAÇÃO DO SISTEMA" />
           <Text style={styles.blockTitle}>Administração do Sistema</Text>
           <Text style={styles.section}>Cadastrar Academia</Text>
           <TextInput placeholder="Nome da academia" style={styles.input} value={nomeAcademia} onChangeText={setNomeAcademia} />
@@ -671,6 +704,7 @@ export default function ProfessorHome({ navigation }) {
       )}
 
       {isAcademyAdmin && <View style={styles.cardBlock}>
+        <CardMedia variant="aluno" label="CADASTRO DE ALUNO" />
         <Text style={styles.blockTitle}>Cadastro de Aluno</Text>
         <Text style={styles.blockHint}>Crie alunos com senha padrão para início rápido.</Text>
         <TextInput placeholder="Nome do aluno" style={styles.input} value={nome} onChangeText={setNome} />
@@ -682,7 +716,8 @@ export default function ProfessorHome({ navigation }) {
 
       {canManageAcademyUsers && (
         <View style={styles.cardBlock}>
-          <Text style={styles.blockTitle}>Administração de Professores</Text>
+          <CardMedia variant="professor" label="GESTÃO DE PROFESSORES" />
+          <Text style={styles.blockTitle}>Gestão de Professores</Text>
           <Text style={styles.section}>Criar Professor</Text>
           <TextInput placeholder="Nome do professor" style={styles.input} value={nomeProfessor} onChangeText={setNomeProfessor} />
           <TextInput placeholder="E-mail do professor" style={[styles.input, emailProfessorInvalido && styles.inputError]} value={emailProfessor} onChangeText={setEmailProfessor} keyboardType="email-address" autoCapitalize="none" />
@@ -706,6 +741,7 @@ export default function ProfessorHome({ navigation }) {
       )}
 
       {!isSystemAdmin && canBuildTreinoFicha && <View style={styles.cardBlock}>
+        <CardMedia variant="treino" label="MONTAGEM DE FICHA" />
         <Text style={styles.blockTitle}>Montagem de Ficha</Text>
         <Text style={styles.blockHint}>Crie treino modelo ou vincule diretamente a um aluno cadastrado.</Text>
         <TextInput placeholder="Nome do treino" style={styles.input} value={nomeTreino} onChangeText={setNomeTreino} />
@@ -774,6 +810,17 @@ export default function ProfessorHome({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: theme.spacing(2), backgroundColor: theme.colors.background },
+  screenBackground: {
+    ...StyleSheet.absoluteFillObject
+  },
+  screenBackgroundImage: {
+    opacity: 0.12
+  },
+  screenBackgroundTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0f172a',
+    opacity: 0.08
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -793,6 +840,43 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: theme.fontSizes.xl, fontWeight: '700', color: theme.colors.text },
   subtitle: { fontSize: 14, color: theme.colors.muted, marginTop: 4 },
+  heroCard: {
+    height: 140,
+    borderRadius: theme.radii.md,
+    overflow: 'hidden',
+    marginBottom: theme.spacing(1.5),
+    justifyContent: 'flex-end'
+  },
+  heroCardImage: {
+    borderRadius: theme.radii.md
+  },
+  heroCardTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.text,
+    opacity: 0.56
+  },
+  heroCardContent: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(17, 24, 39, 0.32)'
+  },
+  heroCardTag: {
+    color: theme.colors.card,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8
+  },
+  heroCardTitle: {
+    color: theme.colors.card,
+    marginTop: 4,
+    fontSize: theme.fontSizes.lg,
+    fontWeight: '700'
+  },
+  heroCardHint: {
+    color: theme.colors.card,
+    marginTop: 4,
+    fontSize: theme.fontSizes.sm
+  },
   statsRow: {
     flexDirection: 'row',
     gap: 8,

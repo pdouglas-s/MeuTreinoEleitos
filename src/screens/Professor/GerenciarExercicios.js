@@ -7,6 +7,7 @@ import { listAllProfessores } from '../../services/userService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAuthErrorMessage } from '../../utils/authErrors';
+import CardMedia from '../../components/CardMedia';
 
 export default function GerenciarExercicios({ navigation }) {
   const { logout, profile } = useAuth();
@@ -301,6 +302,7 @@ export default function GerenciarExercicios({ navigation }) {
           onPress={() => setFiltroAtivo('todos')}
           activeOpacity={0.85}
         >
+          <CardMedia variant="exercicio" label="EXERCÍCIOS" compact />
           <Text style={styles.statValue}>{exerciciosVisiveis.length}</Text>
           <Text style={styles.statLabel}>Exercícios</Text>
         </TouchableOpacity>
@@ -309,6 +311,7 @@ export default function GerenciarExercicios({ navigation }) {
           onPress={() => alternarFiltro('academia')}
           activeOpacity={0.85}
         >
+          <CardMedia variant="academia" label="DA ACADEMIA" compact />
           <Text style={styles.statValue}>{totalAcademia}</Text>
           <Text style={styles.statLabel}>Da academia</Text>
         </TouchableOpacity>
@@ -317,6 +320,7 @@ export default function GerenciarExercicios({ navigation }) {
           onPress={() => alternarFiltro('padrao')}
           activeOpacity={0.85}
         >
+          <CardMedia variant="sistema" label="PADRÃO" compact />
           <Text style={styles.statValue}>{totalPadrao}</Text>
           <Text style={styles.statLabel}>Padrão</Text>
         </TouchableOpacity>
@@ -339,6 +343,7 @@ export default function GerenciarExercicios({ navigation }) {
       )}
 
       <View style={styles.cardBlock}>
+        <CardMedia variant="sistema" label="BANCO PADRÃO" />
         <Text style={styles.blockTitle}>Banco padrão do sistema</Text>
         <Text style={styles.blockHint}>Use para popular ou limpar exercícios padrões sem afetar os personalizados.</Text>
         <View style={styles.actionContainer}>
@@ -362,6 +367,7 @@ export default function GerenciarExercicios({ navigation }) {
       </View>
 
       <View style={styles.cardBlock}>
+        <CardMedia variant="exercicio" label="NOVO EXERCÍCIO" />
         <Text style={styles.blockTitle}>Cadastrar novo exercício</Text>
         <TextInput placeholder="Nome do exercício" style={styles.input} value={nome} onChangeText={setNome} />
         <TextInput placeholder="Categoria (Peito, Costas, Pernas...)" style={styles.input} value={categoria} onChangeText={setCategoria} />

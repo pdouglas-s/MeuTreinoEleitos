@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, ScrollView, ImageBackground } from 'react-native';
 import theme from '../theme';
 import { Alert } from '../utils/alert';
 import { listItensByTreino, addItemToTreino, deleteItem, reorderItensByTreino, updateTreinoItem } from '../services/treinoItensService';
@@ -10,6 +10,10 @@ import { enviarNotificacao } from '../services/notificacoesService';
 import { auth } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthErrorMessage } from '../utils/authErrors';
+import CardMedia from '../components/CardMedia';
+
+const treinoDetailHeroImage = 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=1600&q=80';
+const treinoDetailBackgroundImage = 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?auto=format&fit=crop&w=1600&q=80';
 
 export default function TreinoDetail({ route, navigation }) {
   const { treino } = route.params;
@@ -544,10 +548,31 @@ export default function TreinoDetail({ route, navigation }) {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>{treino.nome_treino}</Text>
+    <View style={styles.container}>
+      <ImageBackground
+        source={{ uri: treinoDetailBackgroundImage }}
+        style={styles.screenBackground}
+        imageStyle={styles.screenBackgroundImage}
+      >
+        <View style={styles.screenBackgroundTint} />
+      </ImageBackground>
+
+      <ScrollView contentContainerStyle={styles.contentContainer}>
+      <ImageBackground
+        source={{ uri: treinoDetailHeroImage }}
+        style={styles.heroCard}
+        imageStyle={styles.heroCardImage}
+      >
+        <View style={styles.heroCardTint} />
+        <View style={styles.heroCardContent}>
+          <Text style={styles.heroTag}>DETALHES DO TREINO</Text>
+          <Text style={styles.heroTitle}>{treino.nome_treino}</Text>
+          <Text style={styles.heroHint}>{itens.length} exercício(s) • {canEditTreino ? 'Edição habilitada' : 'Visualização'}</Text>
+        </View>
+      </ImageBackground>
 
       <View style={styles.cardBlock}>
+        <CardMedia variant="exercicio" label="EXERCÍCIOS DO TREINO" />
         <Text style={styles.section}>Exercícios do Treino</Text>
         {loading && <Text style={styles.mutedText}>Carregando...</Text>}
         {!loading && itens.length === 0 && <Text style={styles.mutedText}>Nenhum exercício adicionado ainda</Text>}
@@ -604,6 +629,7 @@ export default function TreinoDetail({ route, navigation }) {
 
       {canManageItens && (
         <View style={styles.cardBlock}>
+        <CardMedia variant="exercicio" label="ADICIONAR EXERCÍCIO" />
         <Text style={styles.section}>Adicionar exercício</Text>
         
         <Button 
@@ -646,6 +672,7 @@ export default function TreinoDetail({ route, navigation }) {
 
       {canEditTreino && (
         <View style={styles.cardBlock}>
+          <CardMedia variant="treino" label="EDIÇÃO DO TREINO" />
           <Text style={styles.section}>Editar treino</Text>
           <TextInput placeholder="Nome do treino" style={styles.input} value={editNome} onChangeText={setEditNome} />
           
@@ -686,13 +713,64 @@ export default function TreinoDetail({ route, navigation }) {
           </Text>
         </TouchableOpacity>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: theme.spacing(2), backgroundColor: theme.colors.background },
-  title: { fontSize: theme.fontSizes.xl, fontWeight: '700', marginBottom: theme.spacing(1), color: theme.colors.text },
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  contentContainer: {
+    padding: theme.spacing(2),
+    paddingBottom: theme.spacing(2)
+  },
+  screenBackground: {
+    ...StyleSheet.absoluteFillObject
+  },
+  screenBackgroundImage: {
+    opacity: 0.12
+  },
+  screenBackgroundTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0f172a',
+    opacity: 0.08
+  },
+  heroCard: {
+    minHeight: 136,
+    borderRadius: theme.radii.lg,
+    overflow: 'hidden',
+    marginBottom: theme.spacing(1.5),
+    justifyContent: 'flex-end'
+  },
+  heroCardImage: {
+    borderRadius: theme.radii.lg
+  },
+  heroCardTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.text,
+    opacity: 0.56
+  },
+  heroCardContent: {
+    padding: 12,
+    backgroundColor: 'rgba(17, 24, 39, 0.32)'
+  },
+  heroTag: {
+    color: theme.colors.card,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8
+  },
+  heroTitle: {
+    color: theme.colors.card,
+    fontSize: theme.fontSizes.xl,
+    fontWeight: '800',
+    marginTop: 4
+  },
+  heroHint: {
+    color: theme.colors.card,
+    fontSize: 12,
+    marginTop: 4
+  },
   cardBlock: {
     backgroundColor: theme.colors.card,
     borderRadius: theme.radii.md,

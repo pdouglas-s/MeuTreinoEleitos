@@ -98,6 +98,32 @@ function distribuirNivel(distribuicao, nivel) {
   distribuicao[chave] = (distribuicao[chave] || 0) + 1;
 }
 
+function sanitizeForFirestore(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeForFirestore(item))
+      .filter((item) => item !== undefined);
+  }
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, item]) => [key, sanitizeForFirestore(item)])
+        .filter(([, item]) => item !== undefined)
+    );
+  }
+  return value;
+}
+
+function formatarDuracaoSegundos(segundos) {
+  const total = Number.isFinite(Number(segundos)) ? Math.max(0, Math.floor(Number(segundos))) : 0;
+  const horas = Math.floor(total / 3600);
+  const minutos = Math.floor((total % 3600) / 60);
+  const segs = total % 60;
+  return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
+}
+
 /**
  * Relatório estatístico por categoria muscular a partir de notificações de treino finalizado
  */
@@ -127,6 +153,11 @@ export async function gerarRelatorioEsforcoPorCategoria({ professorId = null, ac
       periodoDias,
       totalNotificacoesConsideradas: 0,
       mediaGeral: null,
+      tempoTotalSegundos: 0,
+      tempoTotalFormatado: formatarDuracaoSegundos(0),
+      tempoMedioSegundos: 0,
+      tempoMedioFormatado: formatarDuracaoSegundos(0),
+      totalTreinosComTempo: 0,
       distribuicaoGeral: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
       categorias: []
     };
@@ -173,15 +204,24 @@ export async function gerarRelatorioEsforcoPorCategoria({ professorId = null, ac
   const distribuicaoGeral = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   let somaGeral = 0;
   let totalGeral = 0;
+  let somaTempoSegundos = 0;
+  let totalComTempo = 0;
 
   finalizacoes.forEach((item) => {
     const treinoId = String(item?.dados?.treino_id || '').trim();
     const nivel = Number(item?.dados?.nivel_esforco);
+    const tempoTreinoSegundos = Number(item?.dados?.tempo_treino_segundos);
     const categorias = treinoCategoriasMap[treinoId] || ['Sem categoria'];
 
     somaGeral += nivel;
     totalGeral += 1;
     distribuirNivel(distribuicaoGeral, nivel);
+
+    const tempoValido = Number.isFinite(tempoTreinoSegundos) && tempoTreinoSegundos >= 0;
+    if (tempoValido) {
+      somaTempoSegundos += tempoTreinoSegundos;
+      totalComTempo += 1;
+    }
 
     categorias.forEach((categoria) => {
       if (!categoriasAgg[categoria]) {
@@ -189,32 +229,53 @@ export async function gerarRelatorioEsforcoPorCategoria({ professorId = null, ac
           categoria,
           total_treinos: 0,
           soma_esforco: 0,
+          soma_tempo_segundos: 0,
+          total_com_tempo: 0,
           distribuicao: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
         };
       }
 
       categoriasAgg[categoria].total_treinos += 1;
       categoriasAgg[categoria].soma_esforco += nivel;
+      if (tempoValido) {
+        categoriasAgg[categoria].soma_tempo_segundos += tempoTreinoSegundos;
+        categoriasAgg[categoria].total_com_tempo += 1;
+      }
       distribuirNivel(categoriasAgg[categoria].distribuicao, nivel);
     });
   });
 
   const categorias = Object.values(categoriasAgg)
-    .map((item) => ({
-      categoria: item.categoria,
-      total_treinos: item.total_treinos,
-      media_esforco: Math.round((item.soma_esforco / item.total_treinos) * 10) / 10,
-      distribuicao: item.distribuicao
-    }))
+    .map((item) => {
+      const tempoMedioSegundosCategoria = item.total_com_tempo
+        ? Math.round(item.soma_tempo_segundos / item.total_com_tempo)
+        : 0;
+
+      return {
+        categoria: item.categoria,
+        total_treinos: item.total_treinos,
+        media_esforco: Math.round((item.soma_esforco / item.total_treinos) * 10) / 10,
+        tempo_medio_segundos: tempoMedioSegundosCategoria,
+        tempo_medio_formatado: item.total_com_tempo ? formatarDuracaoSegundos(tempoMedioSegundosCategoria) : '—',
+        distribuicao: item.distribuicao
+      };
+    })
     .sort((a, b) => {
       if (b.total_treinos !== a.total_treinos) return b.total_treinos - a.total_treinos;
       return String(a.categoria || '').localeCompare(String(b.categoria || ''));
     });
 
+  const tempoMedioSegundos = totalComTempo ? Math.round(somaTempoSegundos / totalComTempo) : 0;
+
   return {
     periodoDias,
     totalNotificacoesConsideradas: finalizacoes.length,
     mediaGeral: totalGeral ? Math.round((somaGeral / totalGeral) * 10) / 10 : null,
+    tempoTotalSegundos: somaTempoSegundos,
+    tempoTotalFormatado: formatarDuracaoSegundos(somaTempoSegundos),
+    tempoMedioSegundos,
+    tempoMedioFormatado: totalComTempo ? formatarDuracaoSegundos(tempoMedioSegundos) : '—',
+    totalTreinosComTempo: totalComTempo,
     distribuicaoGeral,
     categorias
   };
@@ -225,6 +286,7 @@ export async function gerarRelatorioEsforcoPorCategoria({ professorId = null, ac
  */
 export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const notifRef = collection(db, 'notificacoes');
+  const dadosLimpos = sanitizeForFirestore(dados || {}) || {};
   const tiposSomenteAluno = ['treino_associado', 'treino_atualizado', 'treino_excluido'];
   const tiposSomenteProfessor = ['treino_iniciado', 'exercicio_concluido', 'treino_finalizado'];
   const tiposSomenteAcademia = ['treino_criado', 'treino_excluido_academia'];
@@ -242,47 +304,73 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   let mensagem = '';
   switch (tipo) {
     case 'treino_iniciado':
-      mensagem = `${dados.aluno_nome} iniciou o treino "${dados.treino_nome}"`;
+      mensagem = `${dadosLimpos.aluno_nome} iniciou o treino "${dadosLimpos.treino_nome}"`;
       break;
     case 'exercicio_concluido':
-      mensagem = `${dados.aluno_nome} concluiu ${dados.exercicio_nome} (${dados.series}x${dados.repeticoes})`;
+      {
+        const seriesText = String(dadosLimpos.series ?? '').trim();
+        const repeticoesText = String(dadosLimpos.repeticoes ?? '').trim();
+        const cargaText = String(dadosLimpos.carga ?? '').trim();
+
+        const partesResumo = [];
+        if (seriesText && repeticoesText) {
+          partesResumo.push(`${seriesText}x${repeticoesText}`);
+        } else if (seriesText) {
+          partesResumo.push(`${seriesText} séries`);
+        } else if (repeticoesText) {
+          partesResumo.push(repeticoesText);
+        }
+
+        if (cargaText) {
+          partesResumo.push(`${cargaText}kg`);
+        }
+
+        const sufixo = partesResumo.length ? ` (${partesResumo.join(' • ')})` : '';
+        mensagem = `${dadosLimpos.aluno_nome} concluiu ${dadosLimpos.exercicio_nome}${sufixo}`;
+      }
       break;
     case 'treino_finalizado':
-      mensagem = `${dados.aluno_nome} finalizou o treino "${dados.treino_nome}" - ${dados.total_exercicios} exercícios`;
-      if (dados.nivel_esforco && intensidadeTexto[dados.nivel_esforco]) {
-        mensagem += `\nIntensidade: ${intensidadeTexto[dados.nivel_esforco]}`;
+      mensagem = `${dadosLimpos.aluno_nome} finalizou o treino "${dadosLimpos.treino_nome}" - ${dadosLimpos.total_exercicios} exercícios`;
+      if (dadosLimpos.tempo_treino_formatado) {
+        mensagem += `\nTempo total: ${dadosLimpos.tempo_treino_formatado}`;
       }
-      if (dados.feedback && String(dados.feedback).trim()) {
-        mensagem += `\nFeedback: ${String(dados.feedback).trim()}`;
+      if (dadosLimpos.tempo_medio_academia_formatado) {
+        mensagem += `\nMédia da academia: ${dadosLimpos.tempo_medio_academia_formatado}`;
+      }
+      if (dadosLimpos.nivel_esforco && intensidadeTexto[dadosLimpos.nivel_esforco]) {
+        mensagem += `\nIntensidade: ${intensidadeTexto[dadosLimpos.nivel_esforco]}`;
+      }
+      if (dadosLimpos.feedback && String(dadosLimpos.feedback).trim()) {
+        mensagem += `\nFeedback: ${String(dadosLimpos.feedback).trim()}`;
       }
       break;
     case 'treino_associado':
-      mensagem = `${dados.professor_nome || 'Professor'} associou o treino "${dados.treino_nome}" para você`;
+      mensagem = `${dadosLimpos.professor_nome || 'Professor'} associou o treino "${dadosLimpos.treino_nome}" para você`;
       break;
     case 'treino_criado':
-      mensagem = `${dados.professor_nome || 'Professor'} criou o treino "${dados.treino_nome}"`;
-      if (dados.aluno_nome) {
-        mensagem += ` para ${dados.aluno_nome}`;
+      mensagem = `${dadosLimpos.professor_nome || 'Professor'} criou o treino "${dadosLimpos.treino_nome}"`;
+      if (dadosLimpos.aluno_nome) {
+        mensagem += ` para ${dadosLimpos.aluno_nome}`;
       } else {
         mensagem += ' (modelo)';
       }
       break;
     case 'treino_atualizado':
-      mensagem = `${dados.professor_nome || 'Professor'} atualizou o treino "${dados.treino_nome}"`;
+      mensagem = `${dadosLimpos.professor_nome || 'Professor'} atualizou o treino "${dadosLimpos.treino_nome}"`;
       {
-        const incluidos = normalizarListaNomes(dados?.itens_incluidos || []);
-        const excluidos = normalizarListaNomes(dados?.itens_excluidos || []);
+        const incluidos = normalizarListaNomes(dadosLimpos?.itens_incluidos || []);
+        const excluidos = normalizarListaNomes(dadosLimpos?.itens_excluidos || []);
         mensagem += formatarListaAlteracoes('Incluídos', incluidos);
         mensagem += formatarListaAlteracoes('Excluídos', excluidos);
       }
       break;
     case 'treino_excluido':
-      mensagem = `${dados.professor_nome || 'Professor'} removeu o treino "${dados.treino_nome}" da sua lista`;
+      mensagem = `${dadosLimpos.professor_nome || 'Professor'} removeu o treino "${dadosLimpos.treino_nome}" da sua lista`;
       break;
     case 'treino_excluido_academia':
-      mensagem = `${dados.professor_nome || 'Professor'} excluiu o treino "${dados.treino_nome}"`;
-      if (dados.aluno_nome) {
-        mensagem += ` de ${dados.aluno_nome}`;
+      mensagem = `${dadosLimpos.professor_nome || 'Professor'} excluiu o treino "${dadosLimpos.treino_nome}"`;
+      if (dadosLimpos.aluno_nome) {
+        mensagem += ` de ${dadosLimpos.aluno_nome}`;
       } else {
         mensagem += ' (modelo)';
       }
@@ -294,10 +382,10 @@ export async function enviarNotificacao(professorId, alunoId, tipo, dados) {
   const docRef = await addDoc(notifRef, {
     professor_id: professorDestinoId,
     aluno_id: alunoDestinoId,
-    academia_id: String(dados?.academia_id || '').trim() || null,
+    academia_id: String(dadosLimpos?.academia_id || '').trim() || null,
     tipo,
     mensagem,
-    dados,
+    dados: dadosLimpos,
     lida: false,
     created_at: new Date()
   });

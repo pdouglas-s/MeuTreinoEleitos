@@ -8,6 +8,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { isValidPassword, MIN_PASSWORD_LENGTH } from '../utils/validation';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import theme from '../theme';
+import CardMedia from '../components/CardMedia';
 
 export default function ChangePassword({ navigation }) {
   const [password, setPassword] = useState('');
@@ -47,6 +48,7 @@ export default function ChangePassword({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.card}>
+        <CardMedia variant="auth" label="SEGURANÇA DA CONTA" />
         <Text style={styles.title}>Trocar Senha</Text>
         <Text style={styles.subtitle}>Defina uma nova senha para concluir seu primeiro acesso</Text>
         <TextInput placeholder={`Nova senha (mínimo ${MIN_PASSWORD_LENGTH})`} secureTextEntry style={[styles.input, senhaInvalida && styles.inputError]} value={password} onChangeText={setPassword} />

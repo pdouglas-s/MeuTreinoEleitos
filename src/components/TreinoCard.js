@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, TextInput, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, TextInput, Linking, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../theme';
-import { criarSessaoTreino, marcarExercicioConcluido, finalizarSessao, buscarSessaoAtiva } from '../services/historicoService';
+import { criarSessaoTreino, marcarExercicioConcluido, finalizarSessao, buscarSessaoAtiva, calcularTempoMedioAcademia, formatarDuracao } from '../services/historicoService';
 import { enviarNotificacao } from '../services/notificacoesService';
 import { sugerirPlaylistsTreino } from '../services/musicSuggestionService';
 import { Alert } from '../utils/alert';
 import { getAuthErrorMessage } from '../utils/authErrors';
+import CardMedia from './CardMedia';
+
+const exerciciosBackgroundImage = 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1200&q=80';
+
+function toDateValue(value) {
+  if (!value) return null;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 export default function TreinoCard({ treino, onOpen, alunoId, professorId, alunoNome, collapsedByDefault = false }) {
   const [exercicios, setExercicios] = useState(
@@ -19,6 +29,8 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   const [pesoEditando, setPesoEditando] = useState('');
   const [mostrarFinalizacao, setMostrarFinalizacao] = useState(false);
   const [detalhesAbertos, setDetalhesAbertos] = useState(true);
+  const [inicioSessao, setInicioSessao] = useState(null);
+  const [tempoDecorridoSegundos, setTempoDecorridoSegundos] = useState(0);
   const [nivelEsforco, setNivelEsforco] = useState(0);
   const [feedbackTreino, setFeedbackTreino] = useState('');
   const [playlistSugestao, setPlaylistSugestao] = useState(null);
@@ -65,6 +77,22 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   }, [treino.id]);
 
   useEffect(() => {
+    if (!sessaoId || !inicioSessao) {
+      setTempoDecorridoSegundos(0);
+      return undefined;
+    }
+
+    const atualizar = () => {
+      const diff = Math.floor((Date.now() - inicioSessao.getTime()) / 1000);
+      setTempoDecorridoSegundos(Math.max(0, diff));
+    };
+
+    atualizar();
+    const interval = setInterval(atualizar, 1000);
+    return () => clearInterval(interval);
+  }, [sessaoId, inicioSessao]);
+
+  useEffect(() => {
     const itensTreino = treino.itens || [];
     setExercicios((prev) => {
       if (!sessaoId) {
@@ -107,6 +135,12 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       const sessao = await buscarSessaoAtiva(treino.id, alunoId);
       if (sessao) {
         setSessaoId(sessao.id);
+        const inicio = toDateValue(sessao?.data_inicio);
+        setInicioSessao(inicio);
+        if (inicio) {
+          const diff = Math.floor((Date.now() - inicio.getTime()) / 1000);
+          setTempoDecorridoSegundos(Math.max(0, diff));
+        }
         // Restaurar estado dos exercícios da sessão
         const exerciciosConcluidos = sessao.exercicios || [];
         const exerciciosAtualizados = (treino.itens || []).map((item) => {
@@ -129,6 +163,9 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       setIniciandoSessao(true);
       const novoSessaoId = await criarSessaoTreino(treino.id, alunoId, professorId);
       setSessaoId(novoSessaoId);
+      const inicio = new Date();
+      setInicioSessao(inicio);
+      setTempoDecorridoSegundos(0);
       setPlaylistSugestao(sugerirPlaylistsTreino(treino?.itens || [], nivelEsforco));
       
       if (professorId) {
@@ -266,10 +303,26 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
     }
 
     try {
-      await finalizarSessao(sessaoId, {
+      const resumoSessao = await finalizarSessao(sessaoId, {
         nivel_esforco: nivelEsforco,
         feedback: String(feedbackTreino || '').trim() || null
       });
+      const tempoSessaoSegundos = Number.isFinite(Number(resumoSessao?.duracao_segundos))
+        ? Number(resumoSessao.duracao_segundos)
+        : tempoDecorridoSegundos;
+      const tempoSessaoFormatado = resumoSessao?.duracao_formatada || formatarDuracao(tempoSessaoSegundos);
+
+      let tempoMedioAcademiaSegundos = 0;
+      let tempoMedioAcademiaFormatado = null;
+      if (treino?.academia_id) {
+        try {
+          const mediaAcademia = await calcularTempoMedioAcademia(treino.academia_id);
+          tempoMedioAcademiaSegundos = Number(mediaAcademia?.mediaSegundos || 0);
+          tempoMedioAcademiaFormatado = mediaAcademia?.mediaFormatada || null;
+        } catch (mediaErr) {
+          console.warn('Falha ao calcular tempo médio da academia:', mediaErr?.message || mediaErr);
+        }
+      }
       
       if (professorId) {
         try {
@@ -281,6 +334,10 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
             total_planejado: total,
             nivel_esforco: nivelEsforco,
             feedback: String(feedbackTreino || '').trim() || null,
+            tempo_treino_segundos: tempoSessaoSegundos,
+            tempo_treino_formatado: tempoSessaoFormatado,
+            tempo_medio_academia_segundos: tempoMedioAcademiaSegundos,
+            tempo_medio_academia_formatado: tempoMedioAcademiaFormatado,
             academia_id: treino.academia_id || null
           });
         } catch (notifyErr) {
@@ -288,10 +345,12 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         }
       }
 
-      Alert.alert('Parabéns! 🎉', `Treino finalizado com sucesso!\n\n${totalConcluidos}/${total} exercícios concluídos`);
+      Alert.alert('Parabéns! 🎉', `Treino finalizado com sucesso!\n\n${totalConcluidos}/${total} exercícios concluídos\nTempo total: ${tempoSessaoFormatado}`);
       
       // Resetar sessão para permitir novo treino
       setSessaoId(null);
+      setInicioSessao(null);
+      setTempoDecorridoSegundos(0);
       setPlaylistSugestao(null);
       setExercicios((treino.itens || []).map((e) => ({ ...e, done: false })));
       cancelarFinalizacao();
@@ -302,6 +361,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   }
 
   const doneCount = exercicios.filter((e) => e.done).length;
+  const tempoDecorridoFormatado = formatarDuracao(tempoDecorridoSegundos);
 
   function handleAbrirDetalhes() {
     if (modoCompacto) {
@@ -322,6 +382,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
   if (carregando) {
     return (
       <View style={styles.card}>
+        <CardMedia variant="treino" label="CARREGANDO TREINO" compact />
         <ActivityIndicator size="small" color={theme.colors.primary} />
       </View>
     );
@@ -329,6 +390,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
   return (
     <View style={styles.card}>
+      <CardMedia variant="treino" label={String(treino?.nome_treino || 'TREINO').toUpperCase()} compact />
       <View style={styles.headerRow}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{treino.nome_treino}</Text>
@@ -342,6 +404,12 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
         <View style={styles.statusRow}>
           {sessaoId && <Ionicons name="fitness" size={18} color={theme.colors.primary} style={{ marginRight: 6 }} />}
           <Text style={styles.progress}>{`${doneCount}/${exercicios.length}`}</Text>
+          {sessaoId && (
+            <View style={styles.timerWrap}>
+              <Ionicons name="time-outline" size={14} color={theme.colors.primary} />
+              <Text style={styles.timerText}>{tempoDecorridoFormatado}</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -364,6 +432,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
       {sessaoId && detalhesAbertos && playlistSugestao && (
         <View style={styles.musicCard}>
+          <CardMedia variant="musica" label="PLAYLIST SUGERIDA" compact />
           <View style={styles.musicHeader}>
             <Ionicons name="musical-notes" size={18} color={theme.colors.primary} />
             <Text style={styles.musicTitle}>Playlist sugerida ({playlistSugestao.categoriaPrincipal})</Text>
@@ -388,51 +457,59 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
       )}
 
       {detalhesAbertos && (
-        <FlatList
-          data={exercicios}
-          keyExtractor={(item, i) => String(i)}
-          renderItem={({ item, index }) => (
-            <View style={styles.itemRow}>
-              <TouchableOpacity 
-                onPress={() => toggleDone(index)} 
-                style={[styles.checkbox, item.done && styles.checkboxDone]} 
-                testID={`checkbox-${index}`}
-                disabled={!sessaoId}
-              >
-                {item.done ? (
-                  <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
-                ) : (
-                  <Ionicons name="ellipse-outline" size={24} color={theme.colors.muted} style={{ opacity: sessaoId ? 1 : 0.4 }} />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.itemInfo} onPress={() => iniciarEdicaoPeso(index)} activeOpacity={0.8}>
-                <Text style={[styles.itemTitle, item.done && styles.itemTitleDone]}>{item.exercicio_nome || 'Exercício'}</Text>
-                {!!formatExercicioResumo(item) && <Text style={styles.itemMeta}>{formatExercicioResumo(item)}</Text>}
-                <Text style={styles.itemHint}>Toque para editar apenas o peso</Text>
+        <ImageBackground
+          source={{ uri: exerciciosBackgroundImage }}
+          style={styles.exerciciosPanel}
+          imageStyle={styles.exerciciosPanelImage}
+        >
+          <View style={styles.exerciciosPanelTint} />
+          <FlatList
+            data={exercicios}
+            contentContainerStyle={styles.exerciciosListContent}
+            keyExtractor={(item, i) => String(i)}
+            renderItem={({ item, index }) => (
+              <View style={styles.itemRow}>
+                <TouchableOpacity 
+                  onPress={() => toggleDone(index)} 
+                  style={[styles.checkbox, item.done && styles.checkboxDone]} 
+                  testID={`checkbox-${index}`}
+                  disabled={!sessaoId}
+                >
+                  {item.done ? (
+                    <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                  ) : (
+                    <Ionicons name="ellipse-outline" size={24} color={theme.colors.muted} style={{ opacity: sessaoId ? 1 : 0.4 }} />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.itemInfo} onPress={() => iniciarEdicaoPeso(index)} activeOpacity={0.8}>
+                  <Text style={[styles.itemTitle, item.done && styles.itemTitleDone]}>{item.exercicio_nome || 'Exercício'}</Text>
+                  {!!formatExercicioResumo(item) && <Text style={styles.itemMeta}>{formatExercicioResumo(item)}</Text>}
+                  <Text style={styles.itemHint}>Toque para editar apenas o peso</Text>
 
-                {editingIndex === index && (
-                  <View style={styles.editContainer}>
-                    <TextInput
-                      style={styles.editInput}
-                      value={pesoEditando}
-                      onChangeText={setPesoEditando}
-                      keyboardType="numeric"
-                      placeholder="Novo peso (kg)"
-                    />
-                    <View style={styles.editActions}>
-                      <TouchableOpacity style={styles.editSaveBtn} onPress={() => salvarPeso(index)}>
-                        <Text style={styles.editSaveText}>Salvar peso</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.editCancelBtn} onPress={cancelarEdicaoPeso}>
-                        <Text style={styles.editCancelText}>Cancelar</Text>
-                      </TouchableOpacity>
+                  {editingIndex === index && (
+                    <View style={styles.editContainer}>
+                      <TextInput
+                        style={styles.editInput}
+                        value={pesoEditando}
+                        onChangeText={setPesoEditando}
+                        keyboardType="numeric"
+                        placeholder="Novo peso (kg)"
+                      />
+                      <View style={styles.editActions}>
+                        <TouchableOpacity style={styles.editSaveBtn} onPress={() => salvarPeso(index)}>
+                          <Text style={styles.editSaveText}>Salvar peso</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.editCancelBtn} onPress={cancelarEdicaoPeso}>
+                          <Text style={styles.editCancelText}>Cancelar</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        </ImageBackground>
       )}
 
       {sessaoId && detalhesAbertos && (
@@ -444,6 +521,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
       {sessaoId && mostrarFinalizacao && detalhesAbertos && (
         <View style={styles.finalizacaoCard}>
+          <CardMedia variant="progresso" label="FINALIZAÇÃO" compact />
           <Text style={styles.finalizacaoTitle}>Nível de esforço do treino</Text>
           <Text style={styles.finalizacaoHint}>Escolha a carinha que melhor representa seu esforço</Text>
 
@@ -504,6 +582,23 @@ const styles = StyleSheet.create({
   },
   statusRow: { flexDirection: 'row', alignItems: 'center' },
   progress: { fontSize: theme.fontSizes.sm, color: theme.colors.muted },
+  timerWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    backgroundColor: '#eff6ff',
+    borderRadius: 999,
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    gap: 4
+  },
+  timerText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: '700'
+  },
   startBtn: { marginBottom: 12, backgroundColor: theme.colors.primary, padding: 10, borderRadius: theme.radii.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
   startText: { color: theme.colors.card, fontWeight: '600', fontSize: 15 },
   musicCard: {
@@ -556,6 +651,23 @@ const styles = StyleSheet.create({
     color: theme.colors.card,
     fontWeight: '700',
     fontSize: 12
+  },
+  exerciciosPanel: {
+    borderRadius: theme.radii.md,
+    overflow: 'hidden',
+    marginTop: 8
+  },
+  exerciciosPanelImage: {
+    opacity: 0.13
+  },
+  exerciciosPanelTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0f172a',
+    opacity: 0.04
+  },
+  exerciciosListContent: {
+    paddingHorizontal: 6,
+    paddingBottom: 2
   },
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.colors.background, marginTop: 8 },
   checkbox: { width: 34, height: 34, borderRadius: theme.radii.sm, alignItems: 'center', justifyContent: 'center', marginRight: 12 },

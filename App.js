@@ -118,10 +118,10 @@ function AppNavigator() {
     <Suspense fallback={<Loading />}>
       <NavigationContainer>
         <Stack.Navigator initialRouteName={initialRoute}>
-          <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Login' }} />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Criar Conta' }} />
-          <Stack.Screen name="SystemAdminHome" component={SystemAdminHome} options={{ title: 'Admin do Sistema' }} />
-          <Stack.Screen name="AdminAcademiaHome" component={AdminAcademiaHome} options={{ title: 'Admin da Academia' }} />
+          <Stack.Screen name="SystemAdminHome" component={SystemAdminHome} options={{ title: 'Sistema' }} />
+          <Stack.Screen name="AdminAcademiaHome" component={AdminAcademiaHome} options={{ title: 'Academia' }} />
           <Stack.Screen name="ProfessorHome" component={ProfessorHome} options={{ title: 'Professor' }} />
           <Stack.Screen name="AlunoHome" component={AlunoHome} options={{ title: 'Aluno' }} />
           <Stack.Screen name="TreinoDetail" component={TreinoDetail} options={{ title: 'Treino' }} />
