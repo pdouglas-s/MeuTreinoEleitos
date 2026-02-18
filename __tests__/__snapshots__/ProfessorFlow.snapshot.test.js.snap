@@ -255,6 +255,16 @@ exports[`ProfessorHome render snapshot (flow básico) 1`] = `
         0
       </Text>
     </View>
+  </View>
+  <View
+    style={
+      {
+        "flexDirection": "row",
+        "gap": 8,
+        "marginBottom": 12,
+      }
+    }
+  >
     <View
       accessibilityState={
         {
@@ -319,104 +329,6 @@ exports[`ProfessorHome render snapshot (flow básico) 1`] = `
         Notificações
       </Text>
     </View>
-  </View>
-  <View
-    accessibilityState={
-      {
-        "busy": undefined,
-        "checked": undefined,
-        "disabled": undefined,
-        "expanded": undefined,
-        "selected": undefined,
-      }
-    }
-    accessibilityValue={
-      {
-        "max": undefined,
-        "min": undefined,
-        "now": undefined,
-        "text": undefined,
-      }
-    }
-    accessible={true}
-    collapsable={false}
-    focusable={true}
-    onClick={[Function]}
-    onResponderGrant={[Function]}
-    onResponderMove={[Function]}
-    onResponderRelease={[Function]}
-    onResponderTerminate={[Function]}
-    onResponderTerminationRequest={[Function]}
-    onStartShouldSetResponder={[Function]}
-    style={
-      {
-        "alignItems": "center",
-        "backgroundColor": "#ffffff",
-        "borderColor": "#e5e7eb",
-        "borderRadius": 8,
-        "borderWidth": 1,
-        "flexDirection": "row",
-        "marginBottom": 12,
-        "opacity": 1,
-        "paddingHorizontal": 12,
-        "paddingVertical": 12,
-      }
-    }
-  >
-    <View
-      style={
-        {
-          "alignItems": "center",
-          "backgroundColor": "#f7f8fb",
-          "borderRadius": 18,
-          "height": 36,
-          "justifyContent": "center",
-          "marginRight": 10,
-          "width": 36,
-        }
-      }
-    >
-      <Icon
-        color="#1e90ff"
-        name="bar-chart"
-        size={20}
-      />
-    </View>
-    <View
-      style={
-        {
-          "flex": 1,
-        }
-      }
-    >
-      <Text
-        style={
-          {
-            "color": "#111827",
-            "fontSize": 14,
-            "fontWeight": "700",
-          }
-        }
-      >
-        Gerenciar notificações por treino
-      </Text>
-      <Text
-        style={
-          {
-            "color": "#6b7280",
-            "fontSize": 12,
-            "marginTop": 2,
-          }
-        }
-      >
-        Relatório estatístico de esforço por grupo muscular
-      </Text>
-    </View>
-    <Icon
-      color="#6b7280"
-      name="chevron-forward"
-      size={18}
-    />
   </View>
   <View
     style={
@@ -543,7 +455,10 @@ exports[`ProfessorHome render snapshot (flow básico) 1`] = `
     >
       Criar treino para aluno
     </Text>
-    <View
+    <TextInput
+      autoCapitalize="characters"
+      onChangeText={[Function]}
+      placeholder="Digite o nome do aluno"
       style={
         {
           "backgroundColor": "#f7f8fb",
@@ -551,42 +466,11 @@ exports[`ProfessorHome render snapshot (flow básico) 1`] = `
           "borderRadius": 6,
           "borderWidth": 1,
           "marginBottom": 8,
-          "overflow": "hidden",
+          "padding": 12,
         }
       }
-    >
-      <View
-        style={
-          {
-            "width": "100%",
-          }
-        }
-      >
-        <RNCPicker
-          items={
-            [
-              {
-                "label": "Selecione um aluno",
-                "testID": undefined,
-                "textColor": undefined,
-                "value": "",
-              },
-            ]
-          }
-          numberOfLines={1}
-          onChange={[Function]}
-          selectedIndex={0}
-          style={
-            [
-              {
-                "height": 216,
-              },
-              undefined,
-            ]
-          }
-        />
-      </View>
-    </View>
+      value=""
+    />
     <View
       accessibilityRole="button"
       accessibilityState={

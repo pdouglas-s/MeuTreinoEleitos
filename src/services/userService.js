@@ -3,7 +3,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassw
 import { getAuth, signOut } from 'firebase/auth';
 import { setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, deleteDoc, serverTimestamp, limit, orderBy, startAt, endAt } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import Constants from 'expo-constants';
 import { isValidEmail, normalizeEmail } from '../utils/validation';
@@ -454,6 +454,63 @@ export async function listAllAlunos() {
     : query(usersCol, where('role', '==', ROLE_ALUNO));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function findAlunoByEmail(email) {
+  const usersCol = collection(db, 'users');
+  const emailNormalizado = normalizeEmail(email);
+  if (!isValidEmail(emailNormalizado)) throw new Error('E-mail inválido');
+
+  const academiaId = await getCurrentUserAcademiaId();
+  const q = academiaId
+    ? query(
+      usersCol,
+      where('role', '==', ROLE_ALUNO),
+      where('academia_id', '==', academiaId),
+      where('email', '==', emailNormalizado),
+      limit(1)
+    )
+    : query(
+      usersCol,
+      where('role', '==', ROLE_ALUNO),
+      where('email', '==', emailNormalizado),
+      limit(1)
+    );
+
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+
+  const docSnap = snap.docs[0];
+  return { id: docSnap.id, ...docSnap.data() };
+}
+
+export async function searchAlunosByNome(nomeParcial, maxResults = 8) {
+  const usersCol = collection(db, 'users');
+  const termo = String(nomeParcial || '').trim().toUpperCase();
+  if (!termo) return [];
+
+  const academiaId = await getCurrentUserAcademiaId();
+  const q = academiaId
+    ? query(
+      usersCol,
+      where('role', '==', ROLE_ALUNO),
+      where('academia_id', '==', academiaId),
+      orderBy('nome'),
+      startAt(termo),
+      endAt(`${termo}\uf8ff`),
+      limit(maxResults)
+    )
+    : query(
+      usersCol,
+      where('role', '==', ROLE_ALUNO),
+      orderBy('nome'),
+      startAt(termo),
+      endAt(`${termo}\uf8ff`),
+      limit(maxResults)
+    );
+
+  const snap = await getDocs(q);
+  return snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
 }
 
 export async function createAcademia({ nome }) {

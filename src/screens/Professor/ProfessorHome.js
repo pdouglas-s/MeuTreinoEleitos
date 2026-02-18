@@ -8,6 +8,7 @@ import theme from '../../theme';
 import { Alert } from '../../utils/alert';
 import { createAcademia, createAcademiaAdmin, createAluno, createProfessor, deleteProfessorProfile, listAcademias, listAllAlunos, listAllProfessores, unblockBlockedEmail } from '../../services/userService';
 import { createTreino, listTreinosByProfessor, listTreinosByAcademia, deleteTreino, updateTreino } from '../../services/treinoService';
+import { listAllExercicios } from '../../services/exerciciosService';
 import { contarNaoLidas, contarNaoLidasAcademia, enviarNotificacao } from '../../services/notificacoesService';
 import { auth, db } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,6 +32,10 @@ export default function ProfessorHome({ navigation }) {
   // Treinos
   const [nomeTreino, setNomeTreino] = useState('');
   const [alunoSelecionadoTreino, setAlunoSelecionadoTreino] = useState('');
+  const [buscaAlunoTreino, setBuscaAlunoTreino] = useState('');
+  const [buscandoAlunoTreino, setBuscandoAlunoTreino] = useState(false);
+  const [alunosEncontradosTreino, setAlunosEncontradosTreino] = useState([]);
+  const [alunoSelecionadoInfo, setAlunoSelecionadoInfo] = useState(null);
   const [treinos, setTreinos] = useState([]);
   const [alunos, setAlunos] = useState([]);
   const [alunosMap, setAlunosMap] = useState({});
@@ -38,6 +43,8 @@ export default function ProfessorHome({ navigation }) {
   const orphanCleanupAttemptsRef = useRef(new Set());
   const orphanCleanupInFlightRef = useRef(false);
   const [notifCount, setNotifCount] = useState(0);
+  const [exerciciosPadraoCount, setExerciciosPadraoCount] = useState(0);
+  const [exerciciosAcademiaCount, setExerciciosAcademiaCount] = useState(0);
   const isSystemAdmin = profile?.role === 'admin_sistema';
   const isAcademyAdmin = profile?.role === 'admin_academia';
   const isProfessor = profile?.role === 'professor';
@@ -81,6 +88,9 @@ export default function ProfessorHome({ navigation }) {
         }
         loadAlunos();
         loadNotificacoes(uid);
+        if (isAcademyAdmin) {
+          loadExerciciosResumoAcademia();
+        }
         if (canManageAcademyUsers) {
           loadProfessores();
         }
@@ -152,6 +162,9 @@ export default function ProfessorHome({ navigation }) {
 
       loadAlunos();
       loadNotificacoes(uid);
+      if (isAcademyAdmin) {
+        loadExerciciosResumoAcademia();
+      }
 
       if (canManageAcademyUsers) {
         loadProfessores();
@@ -165,6 +178,42 @@ export default function ProfessorHome({ navigation }) {
     if (!canManageTreinos || !alunosLoaded || treinos.length === 0) return;
     cleanupOrphanTreinoLinks(treinos, alunosMap);
   }, [canManageTreinos, alunosLoaded, treinos, alunosMap]);
+
+  useEffect(() => {
+    if (!isAcademyAdmin) return;
+    loadExerciciosResumoAcademia();
+  }, [isAcademyAdmin, professores.length, profile?.academia_id]);
+
+  useEffect(() => {
+    const termo = String(buscaAlunoTreino || '').trim();
+
+    if (termo.length < 2) {
+      setBuscandoAlunoTreino(false);
+      setAlunosEncontradosTreino([]);
+      return undefined;
+    }
+
+    setBuscandoAlunoTreino(true);
+
+    const normalizar = (valor) => String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase();
+
+    const termoNormalizado = normalizar(termo);
+
+    const timer = setTimeout(async () => {
+      const encontrados = alunos
+        .filter((aluno) => normalizar(aluno?.nome).includes(termoNormalizado))
+        .slice(0, 8);
+      setAlunosEncontradosTreino(encontrados);
+      setBuscandoAlunoTreino(false);
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [buscaAlunoTreino, alunos]);
 
   async function loadAcademias() {
     try {
@@ -236,6 +285,33 @@ export default function ProfessorHome({ navigation }) {
       setProfessores(list);
     } catch (err) {
       console.warn('Erro ao carregar professores', err.message);
+    }
+  }
+
+  async function loadExerciciosResumoAcademia() {
+    try {
+      const list = await listAllExercicios();
+      const padrao = list.filter((item) => item?.is_padrao === true).length;
+      const myAcademiaId = String(profile?.academia_id || '').trim();
+
+      const creatorIds = new Set([
+        auth.currentUser?.uid,
+        ...professores.map((prof) => prof.id)
+      ].filter(Boolean));
+
+      const academia = list.filter((item) => {
+        if (item?.is_padrao === true) return false;
+        const itemAcademiaId = String(item?.academia_id || '').trim();
+        if (itemAcademiaId && myAcademiaId && itemAcademiaId === myAcademiaId) return true;
+        return creatorIds.has(item?.criado_por);
+      }).length;
+
+      setExerciciosPadraoCount(padrao);
+      setExerciciosAcademiaCount(academia);
+    } catch (err) {
+      console.warn('Erro ao carregar resumo de exercícios da academia', err?.message || err);
+      setExerciciosPadraoCount(0);
+      setExerciciosAcademiaCount(0);
     }
   }
 
@@ -371,6 +447,13 @@ export default function ProfessorHome({ navigation }) {
     handleDeleteProfessor(professor.id);
   }
 
+  function handleSelecionarAlunoTreino(aluno) {
+    setAlunoSelecionadoTreino(aluno.id);
+    setAlunoSelecionadoInfo({ id: aluno.id, nome: aluno.nome || 'Aluno', email: aluno.email || '' });
+    setBuscaAlunoTreino(aluno.nome || '');
+    setAlunosEncontradosTreino([]);
+  }
+
   async function handleCreateTreino(alunoId = '') {
     if (!nomeTreino) return Alert.alert('Erro', 'Nome do treino é obrigatório');
     try {
@@ -412,6 +495,9 @@ export default function ProfessorHome({ navigation }) {
 
       setNomeTreino('');
       setAlunoSelecionadoTreino('');
+      setBuscaAlunoTreino('');
+      setAlunosEncontradosTreino([]);
+      setAlunoSelecionadoInfo(null);
       if (isAcademyAdmin) {
         await loadTreinosAcademia(profile?.academia_id);
       } else {
@@ -488,11 +574,39 @@ export default function ProfessorHome({ navigation }) {
           <Text style={styles.statMetaText}>📋 Modelos: {treinosModeloCount}</Text>
           <Text style={styles.statMetaText}>👤 Associados: {treinosComAlunoCount}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Notificacoes')} activeOpacity={0.8}>
-          <Text style={styles.statValue}>{notifCount}</Text>
-          <Text style={styles.statLabel}>Notificações</Text>
-        </TouchableOpacity>
       </View>}
+
+      {isAcademyAdmin && (
+        <TouchableOpacity
+          style={styles.exerciseCard}
+          onPress={() => navigation.navigate('GerenciarExercicios')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.exerciseCardHeader}>
+            <Text style={styles.exerciseCardTitle}>Exercícios</Text>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
+          </View>
+          <View style={styles.exerciseMetricsRow}>
+            <View style={styles.exerciseMetricBox}>
+              <Text style={styles.exerciseMetricValue}>{exerciciosPadraoCount}</Text>
+              <Text style={styles.exerciseMetricLabel}>Padrão</Text>
+            </View>
+            <View style={styles.exerciseMetricBox}>
+              <Text style={styles.exerciseMetricValue}>{exerciciosAcademiaCount}</Text>
+              <Text style={styles.exerciseMetricLabel}>Da academia</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {!isSystemAdmin && (
+        <View style={styles.statsRow}>
+          <TouchableOpacity style={styles.statCard} onPress={() => navigation.navigate('Notificacoes')} activeOpacity={0.8}>
+            <Text style={styles.statValue}>{notifCount}</Text>
+            <Text style={styles.statLabel}>Notificações</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {isAcademyAdmin && (
         <TouchableOpacity
@@ -598,18 +712,55 @@ export default function ProfessorHome({ navigation }) {
         <Button title="Criar Treino (sem aluno)" onPress={() => handleCreateTreino('')} />
 
         <Text style={[styles.section, { marginTop: 12 }]}>Criar treino para aluno</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={alunoSelecionadoTreino}
-            onValueChange={(value) => setAlunoSelecionadoTreino(value)}
-            style={styles.picker}
-          >
-            <Picker.Item label="Selecione um aluno" value="" />
-            {alunos.map((aluno) => (
-              <Picker.Item key={aluno.id} label={`${aluno.nome} (${aluno.email})`} value={aluno.id} />
+        <TextInput
+          placeholder="Digite o nome do aluno"
+          style={styles.input}
+          value={buscaAlunoTreino}
+          onChangeText={(value) => {
+            setBuscaAlunoTreino(value);
+            setAlunoSelecionadoTreino('');
+            setAlunoSelecionadoInfo(null);
+          }}
+          autoCapitalize="characters"
+        />
+
+        {buscandoAlunoTreino && <Text style={styles.helperText}>Buscando alunos...</Text>}
+
+        {!buscandoAlunoTreino && String(buscaAlunoTreino || '').trim().length >= 2 && alunosEncontradosTreino.length === 0 && !alunoSelecionadoInfo && (
+          <Text style={styles.helperText}>Nenhum aluno encontrado</Text>
+        )}
+
+        {alunosEncontradosTreino.length > 0 && (
+          <View style={styles.alunosSugestoesBox}>
+            {alunosEncontradosTreino.map((aluno) => (
+              <TouchableOpacity
+                key={aluno.id}
+                style={styles.alunoSugestaoItem}
+                onPress={() => handleSelecionarAlunoTreino(aluno)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.alunoSugestaoNome}>{aluno.nome}</Text>
+                <Text style={styles.alunoSugestaoEmail}>{aluno.email}</Text>
+              </TouchableOpacity>
             ))}
-          </Picker>
-        </View>
+          </View>
+        )}
+
+        {alunoSelecionadoInfo && (
+          <View style={styles.alunoSelecionadoBox}>
+            <Text style={styles.alunoSelecionadoText}>Selecionado: {alunoSelecionadoInfo.nome}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setBuscaAlunoTreino('');
+                setAlunoSelecionadoTreino('');
+                setAlunosEncontradosTreino([]);
+                setAlunoSelecionadoInfo(null);
+              }}
+            >
+              <Text style={styles.alunoSelecionadoRemover}>Limpar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <Button
           title="Criar Treino para Aluno"
           onPress={() => handleCreateTreino(alunoSelecionadoTreino)}
@@ -701,6 +852,49 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   reportCardHint: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    marginTop: 2
+  },
+  exerciseCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: theme.spacing(1.5)
+  },
+  exerciseCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10
+  },
+  exerciseCardTitle: {
+    color: theme.colors.text,
+    fontWeight: '700',
+    fontSize: 14
+  },
+  exerciseMetricsRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  exerciseMetricBox: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: theme.colors.background
+  },
+  exerciseMetricValue: {
+    color: theme.colors.text,
+    fontWeight: '700',
+    fontSize: theme.fontSizes.lg
+  },
+  exerciseMetricLabel: {
     color: theme.colors.muted,
     fontSize: 12,
     marginTop: 2
@@ -833,5 +1027,51 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     fontSize: 12,
     marginTop: 8
+  },
+  alunosSugestoesBox: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    marginBottom: theme.spacing(1),
+    overflow: 'hidden'
+  },
+  alunoSugestaoItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb'
+  },
+  alunoSugestaoNome: {
+    color: theme.colors.text,
+    fontWeight: '600',
+    fontSize: 14
+  },
+  alunoSugestaoEmail: {
+    color: theme.colors.muted,
+    marginTop: 2,
+    fontSize: 12
+  },
+  alunoSelecionadoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: theme.spacing(1)
+  },
+  alunoSelecionadoText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  alunoSelecionadoRemover: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: '600'
   }
 });

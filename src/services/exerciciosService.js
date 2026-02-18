@@ -4,13 +4,14 @@ import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc } 
 const exerciciosCol = collection(db, 'exercicios');
 
 // Criar novo exercício no banco
-export async function createExercicio({ nome, categoria, descricao, series_padrao, repeticoes_padrao, carga_padrao, criado_por, is_padrao }) {
+export async function createExercicio({ nome, categoria, descricao, series_padrao, repeticoes_padrao, carga_padrao, criado_por, academia_id, is_padrao }) {
   const data = { nome, categoria };
   if (descricao) data.descricao = descricao;
   if (series_padrao) data.series_padrao = series_padrao;
   if (repeticoes_padrao) data.repeticoes_padrao = repeticoes_padrao;
   if (carga_padrao) data.carga_padrao = carga_padrao;
   if (criado_por) data.criado_por = criado_por; // UID do professor que criou
+  if (academia_id) data.academia_id = academia_id;
   if (is_padrao !== undefined) data.is_padrao = is_padrao; // Flag para exercícios padrão do sistema
   
   const docRef = await addDoc(exerciciosCol, data);

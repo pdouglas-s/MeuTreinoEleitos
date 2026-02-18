@@ -3,6 +3,7 @@ import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity }
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
 import { listAllExercicios, createExercicio, deleteExercicio, inicializarBancoExercicios, existemExerciciosPadrao, deleteExerciciosPadrao, updateExercicio } from '../../services/exerciciosService';
+import { listAllProfessores } from '../../services/userService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAuthErrorMessage } from '../../utils/authErrors';
@@ -20,6 +21,11 @@ export default function GerenciarExercicios({ navigation }) {
   const [temExerciciosPadrao, setTemExerciciosPadrao] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [nomeEditado, setNomeEditado] = useState('');
+  const [categoriaEditada, setCategoriaEditada] = useState('');
+  const [seriesEditadas, setSeriesEditadas] = useState('');
+  const [repsEditadas, setRepsEditadas] = useState('');
+  const [professoresAcademia, setProfessoresAcademia] = useState([]);
+  const [filtroAtivo, setFiltroAtivo] = useState('todos');
 
   useEffect(() => {
     loadExercicios();
@@ -27,9 +33,13 @@ export default function GerenciarExercicios({ navigation }) {
 
   async function loadExercicios() {
     try {
-      const list = await listAllExercicios();
+      const [list, professoresList] = await Promise.all([
+        listAllExercicios(),
+        listAllProfessores().catch(() => [])
+      ]);
       list.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nome.localeCompare(b.nome));
       setExercicios(list);
+      setProfessoresAcademia(professoresList);
       
       // Verificar se existem exercícios padrão
       const temPadrao = await existemExerciciosPadrao();
@@ -47,7 +57,8 @@ export default function GerenciarExercicios({ navigation }) {
         categoria, 
         series_padrao: Number(series) || null, 
         repeticoes_padrao: Number(reps) || null,
-        criado_por: auth.currentUser?.uid // Identifica quem criou
+        criado_por: auth.currentUser?.uid, // Identifica quem criou
+        academia_id: profile?.academia_id || null
       });
       Alert.alert('Sucesso', 'Exercício criado');
       setNome('');
@@ -73,27 +84,67 @@ export default function GerenciarExercicios({ navigation }) {
   function iniciarEdicao(exercicio) {
     setEditandoId(exercicio.id);
     setNomeEditado(exercicio.nome || '');
+    setCategoriaEditada(exercicio.categoria || '');
+    setSeriesEditadas(exercicio.series_padrao ? String(exercicio.series_padrao) : '');
+    setRepsEditadas(exercicio.repeticoes_padrao ? String(exercicio.repeticoes_padrao) : '');
   }
 
   function cancelarEdicao() {
     setEditandoId(null);
     setNomeEditado('');
+    setCategoriaEditada('');
+    setSeriesEditadas('');
+    setRepsEditadas('');
   }
 
-  async function salvarEdicaoNome(exercicio) {
+  async function salvarEdicaoExercicio(exercicio) {
     const novoNome = String(nomeEditado || '').trim();
+    const novaCategoria = String(categoriaEditada || '').trim();
+    const novasSeries = String(seriesEditadas || '').trim();
+    const novasReps = String(repsEditadas || '').trim();
+
     if (!novoNome) return Alert.alert('Erro', 'Nome do exercício é obrigatório');
-    if (novoNome === exercicio.nome) {
+
+    const payload = {
+      nome: novoNome,
+      categoria: novaCategoria || exercicio.categoria || '',
+      series_padrao: novasSeries === '' ? null : Number(novasSeries),
+      repeticoes_padrao: novasReps === '' ? null : Number(novasReps)
+    };
+
+    if ((novasSeries !== '' && Number.isNaN(payload.series_padrao)) || (novasReps !== '' && Number.isNaN(payload.repeticoes_padrao))) {
+      return Alert.alert('Erro', 'Séries e repetições devem ser números válidos');
+    }
+
+    const unchanged =
+      payload.nome === (exercicio.nome || '')
+      && payload.categoria === (exercicio.categoria || '')
+      && payload.series_padrao === (exercicio.series_padrao ?? null)
+      && payload.repeticoes_padrao === (exercicio.repeticoes_padrao ?? null);
+
+    if (unchanged) {
       cancelarEdicao();
       return;
     }
 
     try {
-      await updateExercicio(exercicio.id, { nome: novoNome });
-      setExercicios((prev) => prev.map((item) => (
-        item.id === exercicio.id ? { ...item, nome: novoNome } : item
-      )));
-      Alert.alert('Sucesso', 'Nome do exercício atualizado');
+      const academiaPayload = {
+        ...payload,
+        criado_por: auth.currentUser?.uid,
+        academia_id: profile?.academia_id || null,
+        is_padrao: false
+      };
+
+      if (exercicio?.is_padrao === true) {
+        await updateExercicio(exercicio.id, academiaPayload);
+        Alert.alert('Sucesso', 'Exercício removido do padrão e atualizado para a academia');
+        setFiltroAtivo('academia');
+      } else {
+        await updateExercicio(exercicio.id, academiaPayload);
+        Alert.alert('Sucesso', 'Exercício atualizado');
+      }
+
+      await loadExercicios();
       cancelarEdicao();
     } catch (err) {
       Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível atualizar o exercício.'));
@@ -189,9 +240,48 @@ export default function GerenciarExercicios({ navigation }) {
     }
   }
 
-  const categorias = [...new Set(exercicios.map(e => e.categoria))];
-  const totalCategorias = categorias.length;
-  const totalPadrao = exercicios.filter((e) => e.is_padrao).length;
+  const myAcademiaId = String(profile?.academia_id || '').trim();
+  const myUserId = String(auth.currentUser?.uid || '').trim();
+  const professorIdsAcademia = new Set([
+    myUserId,
+    ...professoresAcademia.map((prof) => prof?.id)
+  ].filter(Boolean));
+
+  const isExercicioAcademia = (item) => {
+    if (item?.is_padrao === true) return false;
+
+    const itemAcademiaId = String(item?.academia_id || '').trim();
+    if (myAcademiaId && itemAcademiaId && itemAcademiaId === myAcademiaId) return true;
+
+    const criadoPor = String(item?.criado_por || '').trim();
+    return !!criadoPor && professorIdsAcademia.has(criadoPor);
+  };
+
+  const exerciciosPadrao = exercicios.filter((item) => item?.is_padrao === true);
+  const exerciciosAcademia = exercicios.filter(isExercicioAcademia);
+
+  const exerciciosVisiveis = exercicios.filter((item) => {
+    if (item?.is_padrao === true) return true;
+    return isExercicioAcademia(item);
+  });
+  const totalPadrao = exerciciosPadrao.length;
+  const totalAcademia = exerciciosAcademia.length;
+
+  const exerciciosFiltrados = filtroAtivo === 'padrao'
+    ? exerciciosPadrao
+    : filtroAtivo === 'academia'
+      ? exerciciosAcademia
+      : exerciciosVisiveis;
+
+  const filtroDescricao = filtroAtivo === 'padrao'
+    ? ' (somente padrão)'
+    : filtroAtivo === 'academia'
+      ? ' (somente da academia)'
+      : '';
+
+  function alternarFiltro(tipo) {
+    setFiltroAtivo((atual) => (atual === tipo ? 'todos' : tipo));
+  }
 
   return (
     <View style={styles.container}>
@@ -206,21 +296,33 @@ export default function GerenciarExercicios({ navigation }) {
       </View>
 
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{exercicios.length}</Text>
+        <TouchableOpacity
+          style={[styles.statCard, filtroAtivo === 'todos' && styles.statCardActive]}
+          onPress={() => setFiltroAtivo('todos')}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.statValue}>{exerciciosVisiveis.length}</Text>
           <Text style={styles.statLabel}>Exercícios</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{totalCategorias}</Text>
-          <Text style={styles.statLabel}>Categorias</Text>
-        </View>
-        <View style={styles.statCard}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.statCard, filtroAtivo === 'academia' && styles.statCardActive]}
+          onPress={() => alternarFiltro('academia')}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.statValue}>{totalAcademia}</Text>
+          <Text style={styles.statLabel}>Da academia</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.statCard, filtroAtivo === 'padrao' && styles.statCardActive]}
+          onPress={() => alternarFiltro('padrao')}
+          activeOpacity={0.85}
+        >
           <Text style={styles.statValue}>{totalPadrao}</Text>
           <Text style={styles.statLabel}>Padrão</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
-      {exercicios.length === 0 && (
+      {exerciciosFiltrados.length === 0 && (
         <View style={styles.emptyContainer}>
           <Text style={{ marginBottom: 12, textAlign: 'center', color: theme.colors.muted }}>Nenhum exercício cadastrado</Text>
         </View>
@@ -268,22 +370,52 @@ export default function GerenciarExercicios({ navigation }) {
         <Button title="Adicionar Exercício" onPress={handleCreateExercicio} />
       </View>
 
-      <Text style={styles.section}>Exercícios Cadastrados ({exercicios.length})</Text>
+      <Text style={styles.section}>Exercícios Cadastrados ({exerciciosFiltrados.length}){filtroDescricao}</Text>
       
       <FlatList
-        data={exercicios}
+        data={exerciciosFiltrados}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item }) => (
-          <View style={styles.exercicioRow}>
+          <TouchableOpacity
+            style={styles.exercicioRow}
+            onPress={() => {
+              if (editandoId !== item.id) iniciarEdicao(item);
+            }}
+            activeOpacity={0.85}
+          >
             <View style={{ flex: 1 }}>
               {editandoId === item.id ? (
-                <TextInput
-                  value={nomeEditado}
-                  onChangeText={setNomeEditado}
-                  style={styles.editInput}
-                  placeholder="Novo nome do exercício"
-                />
+                <>
+                  <TextInput
+                    value={nomeEditado}
+                    onChangeText={setNomeEditado}
+                    style={styles.editInput}
+                    placeholder="Nome do exercício"
+                  />
+                  <TextInput
+                    value={categoriaEditada}
+                    onChangeText={setCategoriaEditada}
+                    style={styles.editInput}
+                    placeholder="Categoria"
+                  />
+                  <View style={styles.editTwoColumns}>
+                    <TextInput
+                      value={seriesEditadas}
+                      onChangeText={setSeriesEditadas}
+                      style={[styles.editInput, styles.editMiniInput]}
+                      placeholder="Séries"
+                      keyboardType="numeric"
+                    />
+                    <TextInput
+                      value={repsEditadas}
+                      onChangeText={setRepsEditadas}
+                      style={[styles.editInput, styles.editMiniInput]}
+                      placeholder="Reps"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </>
               ) : (
                 <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome}</Text>
               )}
@@ -294,7 +426,7 @@ export default function GerenciarExercicios({ navigation }) {
             <View style={styles.rowActions}>
               {editandoId === item.id ? (
                 <>
-                  <TouchableOpacity onPress={() => salvarEdicaoNome(item)} style={styles.saveBtn}>
+                  <TouchableOpacity onPress={() => salvarEdicaoExercicio(item)} style={styles.saveBtn}>
                     <Text style={styles.saveText}>Salvar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={cancelarEdicao} style={styles.cancelBtn}>
@@ -303,16 +435,13 @@ export default function GerenciarExercicios({ navigation }) {
                 </>
               ) : (
                 <>
-                  <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}>
-                    <Text style={styles.editText}>✏️</Text>
-                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteBtn}>
                     <Text style={styles.deleteText}>🗑️</Text>
                   </TouchableOpacity>
                 </>
               )}
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>
@@ -345,6 +474,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb'
+  },
+  statCardActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.background
   },
   statValue: {
     fontSize: theme.fontSizes.lg,
@@ -417,15 +550,6 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.danger,
     marginLeft: 8
   },
-  editBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: theme.radii.sm,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    marginLeft: 8
-  },
   saveBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -448,10 +572,6 @@ const styles = StyleSheet.create({
     color: theme.colors.danger,
     fontSize: 14
   },
-  editText: {
-    color: theme.colors.primary,
-    fontSize: 13
-  },
   saveText: {
     color: theme.colors.primary,
     fontSize: 13
@@ -472,6 +592,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 6,
     backgroundColor: '#fff'
+  },
+  editTwoColumns: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  editMiniInput: {
+    flex: 1
   },
   emptyContainer: {
     padding: 20,
