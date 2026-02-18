@@ -1,5 +1,21 @@
 # Release Notes
 
+## 2026-02-18 — `60d9c87`
+
+### Resumo
+Correção do fluxo de ocultação de exercício padrão por academia, com ajuste de regras Firestore e melhoria de UX na gestão de exercícios.
+
+### Principais mudanças
+- Correção de permissões em `firestore.rules` para permitir ocultação de exercício padrão por staff da academia (somente alteração de `oculto_para_academias`).
+- Ajustes em `src/services/exerciciosService.js` para reforçar persistência da ocultação e tratamento de falhas.
+- Ajustes em `src/screens/Professor/GerenciarExercicios.js` para feedback imediato e melhor diagnóstico de erro no fluxo de ocultação.
+- Inclusão de ação explícita de editar para exercícios criados pela academia (além da exclusão).
+
+### Arquivos de destaque
+- Regras/segurança: `firestore.rules`
+- Serviço: `src/services/exerciciosService.js`
+- Tela: `src/screens/Professor/GerenciarExercicios.js`
+
 ## 2026-02-18 — `0614a9f`
 
 ### Resumo
