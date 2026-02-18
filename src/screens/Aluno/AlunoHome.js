@@ -22,6 +22,7 @@ export default function AlunoHome({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [treinos, setTreinos] = useState([]);
   const [notifCount, setNotifCount] = useState(0);
+  const [treinosAbertos, setTreinosAbertos] = useState(false);
 
   useEffect(() => {
     let unsubscribeTreinos = null;
@@ -235,17 +236,33 @@ export default function AlunoHome({ navigation }) {
           <Text style={styles.emptyHint}>Fale com seu professor para liberar seu próximo treino.</Text>
         </View>
       )}
-      {treinos.map((t) => (
-        <TreinoCard 
-          key={t.id} 
-          treino={t} 
-          onOpen={(treino) => navigation.navigate('TreinoDetail', { treino })}
-          alunoId={auth.currentUser?.uid}
-          professorId={t.professor_id}
-          alunoNome={profile?.nome || 'Aluno'}
-          collapsedByDefault
-        />
-      ))}
+      {treinos.length > 0 && (
+        <View style={styles.groupCard}>
+          <TouchableOpacity
+            style={styles.groupHeader}
+            onPress={() => setTreinosAbertos((prev) => !prev)}
+            activeOpacity={0.85}
+          >
+            <View>
+              <Text style={styles.groupTitle}>Treinos disponíveis</Text>
+              <Text style={styles.groupSubtitle}>{totalTreinos} treino(s)</Text>
+            </View>
+            <Text style={styles.groupChevron}>{treinosAbertos ? '▾' : '▸'}</Text>
+          </TouchableOpacity>
+
+          {treinosAbertos && treinos.map((t) => (
+            <TreinoCard 
+              key={t.id} 
+              treino={t} 
+              onOpen={(treino) => navigation.navigate('TreinoDetail', { treino })}
+              alunoId={auth.currentUser?.uid}
+              professorId={t.professor_id}
+              alunoNome={profile?.nome || 'Aluno'}
+              collapsedByDefault
+            />
+          ))}
+        </View>
+      )}
       </ScrollView>
     </View>
   );
@@ -384,6 +401,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     fontSize: 12
+  },
+  groupCard: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 8
+  },
+  groupTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  groupSubtitle: {
+    color: theme.colors.muted,
+    marginTop: 2,
+    fontSize: 12
+  },
+  groupChevron: {
+    color: theme.colors.muted,
+    fontSize: 18,
+    fontWeight: '700'
   },
   logoutBtn: {
     backgroundColor: '#fee',

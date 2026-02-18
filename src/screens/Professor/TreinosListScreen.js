@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, TouchableWithoutFeedback, TouchableOpacity, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import theme from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -15,6 +15,7 @@ export default function TreinosListScreen({ navigation }) {
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
   const [alunosMap, setAlunosMap] = useState({});
+  const [gruposAbertos, setGruposAbertos] = useState({});
 
   const isAcademyAdmin = profile?.role === 'admin_academia';
 
@@ -81,6 +82,52 @@ export default function TreinosListScreen({ navigation }) {
     });
   }, [treinos, alunosMap, busca]);
 
+  const gruposTreinos = useMemo(() => {
+    const gruposMap = new Map();
+
+    treinosFiltrados.forEach((treino) => {
+      const alunoNome = String(alunosMap[treino?.aluno_id] || '').trim();
+      const ehModelo = !alunoNome;
+      const groupKey = ehModelo ? 'modelo' : `aluno:${String(treino?.aluno_id || '').trim()}`;
+      const groupTitle = ehModelo ? '📋 Treinos modelo (sem aluno)' : `👤 ${alunoNome}`;
+
+      if (!gruposMap.has(groupKey)) {
+        gruposMap.set(groupKey, {
+          key: groupKey,
+          title: groupTitle,
+          isModelo: ehModelo,
+          items: []
+        });
+      }
+
+      gruposMap.get(groupKey).items.push(treino);
+    });
+
+    const grupos = Array.from(gruposMap.values());
+    return grupos.sort((a, b) => {
+      if (a.isModelo && !b.isModelo) return 1;
+      if (!a.isModelo && b.isModelo) return -1;
+      return a.title.localeCompare(b.title);
+    });
+  }, [treinosFiltrados, alunosMap]);
+
+  useEffect(() => {
+    const keysAtuais = new Set(gruposTreinos.map((grupo) => grupo.key));
+    setGruposAbertos((prev) => {
+      const next = {};
+      Object.keys(prev).forEach((key) => {
+        if (keysAtuais.has(key) && prev[key]) {
+          next[key] = true;
+        }
+      });
+      return next;
+    });
+  }, [gruposTreinos]);
+
+  function alternarGrupo(groupKey) {
+    setGruposAbertos((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  }
+
   function handleOpenTreino(treino) {
     navigation.navigate('TreinoDetail', { treino });
   }
@@ -127,35 +174,57 @@ export default function TreinosListScreen({ navigation }) {
         autoCapitalize="none"
       />
 
-      <FlatList
-        data={treinosFiltrados}
-        keyExtractor={(item) => item.id}
+      <ScrollView
         style={styles.list}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => (
-          <View style={styles.itemRow}>
-            <TouchableWithoutFeedback onPress={() => handleOpenTreino(item)}>
-              <View style={styles.itemContent}>
-                <Text style={styles.itemNome}>{item.nome_treino}</Text>
-                <Text style={styles.itemSub}>
-                  {item.aluno_id && alunosMap[item.aluno_id]
-                    ? `👤 ${alunosMap[item.aluno_id]}`
-                    : '📋 Treino modelo (sem aluno)'}
-                </Text>
-              </View>
-            </TouchableWithoutFeedback>
-            {!String(item?.aluno_id || '').trim() && (
-              <TouchableWithoutFeedback onPress={() => handleDeleteTreino(item)}>
-                <View style={styles.deleteBtn}>
-                  <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
+      >
+        {gruposTreinos.map((grupo) => {
+          const grupoAberto = !!gruposAbertos[grupo.key];
+          return (
+            <View key={grupo.key} style={styles.groupCard}>
+              <TouchableOpacity
+                style={styles.groupHeader}
+                activeOpacity={0.85}
+                onPress={() => alternarGrupo(grupo.key)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.groupTitle}>Treinos disponíveis</Text>
+                  <Text style={styles.groupContext}>{grupo.title}</Text>
+                  <Text style={styles.groupMeta}>{grupo.items.length} treino(s)</Text>
                 </View>
-              </TouchableWithoutFeedback>
-            )}
-          </View>
+                <Text style={styles.groupChevron}>{grupoAberto ? '▾' : '▸'}</Text>
+              </TouchableOpacity>
+
+              {grupoAberto && grupo.items.map((item) => (
+                <View key={item.id} style={styles.itemRow}>
+                  <TouchableWithoutFeedback onPress={() => handleOpenTreino(item)}>
+                    <View style={styles.itemContent}>
+                      <Text style={styles.itemNome}>{item.nome_treino}</Text>
+                      <Text style={styles.itemSub}>
+                        {item.aluno_id && alunosMap[item.aluno_id]
+                          ? `👤 ${alunosMap[item.aluno_id]}`
+                          : '📋 Treino modelo (sem aluno)'}
+                      </Text>
+                    </View>
+                  </TouchableWithoutFeedback>
+                  {!String(item?.aluno_id || '').trim() && (
+                    <TouchableWithoutFeedback onPress={() => handleDeleteTreino(item)}>
+                      <View style={styles.deleteBtn}>
+                        <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
+                      </View>
+                    </TouchableWithoutFeedback>
+                  )}
+                </View>
+              ))}
+            </View>
+          );
+        })}
+
+        {gruposTreinos.length === 0 && (
+          <Text style={styles.emptyHint}>Nenhum treino encontrado.</Text>
         )}
-        ListEmptyComponent={<Text style={styles.emptyHint}>Nenhum treino encontrado.</Text>}
-      />
+      </ScrollView>
     </View>
   );
 }
@@ -212,14 +281,49 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: theme.spacing(3)
   },
-  itemRow: {
+  groupCard: {
     borderWidth: 1,
     borderColor: '#e5e7eb',
     borderRadius: theme.radii.sm,
     backgroundColor: theme.colors.card,
+    marginBottom: 8,
+    overflow: 'hidden'
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 10
+  },
+  groupTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text
+  },
+  groupContext: {
+    marginTop: 2,
+    fontSize: 12,
+    color: theme.colors.muted,
+    fontWeight: '600'
+  },
+  groupMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: theme.colors.muted
+  },
+  groupChevron: {
+    fontSize: 16,
+    color: theme.colors.muted,
+    marginLeft: 10
+  },
+  itemRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    backgroundColor: theme.colors.background,
     paddingVertical: 10,
     paddingHorizontal: 10,
-    marginBottom: 6
+    marginBottom: 0
   },
   itemContent: {
     flex: 1
