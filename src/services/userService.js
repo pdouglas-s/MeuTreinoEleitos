@@ -526,6 +526,24 @@ export async function createAcademia({ nome }) {
   return { id };
 }
 
+export async function updateAcademiaBySystem({ academiaId, nome }) {
+  const isSystemAdmin = await isCurrentUserSystemAdmin();
+  if (!isSystemAdmin) throw new Error('Apenas admin do sistema pode atualizar academias');
+
+  const academiaIdNormalizado = String(academiaId || '').trim();
+  const nomeNormalizado = String(nome || '').trim();
+
+  if (!academiaIdNormalizado) throw new Error('Academia é obrigatória');
+  if (!nomeNormalizado) throw new Error('Nome da academia é obrigatório');
+
+  await ensureAcademiaExists(academiaIdNormalizado);
+  await updateDoc(doc(db, 'academias', academiaIdNormalizado), {
+    nome: nomeNormalizado
+  });
+
+  return { id: academiaIdNormalizado };
+}
+
 export async function listAcademias() {
   const snap = await getDocs(collection(db, 'academias'));
   return snap.docs
@@ -560,6 +578,36 @@ export async function createAcademiaAdmin({ nome, email, academia_id }) {
   return { uid };
 }
 
+export async function updateAcademiaAdminBySystem({ adminId, nome, email }) {
+  const isSystemAdmin = await isCurrentUserSystemAdmin();
+  if (!isSystemAdmin) throw new Error('Apenas admin do sistema pode atualizar admin de academia');
+
+  const adminIdNormalizado = String(adminId || '').trim();
+  if (!adminIdNormalizado) throw new Error('Administrador é obrigatório');
+
+  const ref = doc(db, 'users', adminIdNormalizado);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Administrador não encontrado');
+
+  const data = snap.data() || {};
+  if (data.role !== ROLE_ADMIN_ACADEMIA) {
+    throw new Error('O usuário informado não é administrador de academia');
+  }
+
+  const nomeNormalizado = String(nome || '').trim().toUpperCase();
+  const emailNormalizado = normalizeEmail(email);
+
+  if (!nomeNormalizado) throw new Error('Nome é obrigatório');
+  if (!isValidEmail(emailNormalizado)) throw new Error('E-mail inválido');
+
+  await updateDoc(ref, {
+    nome: nomeNormalizado,
+    email: emailNormalizado
+  });
+
+  return { id: adminIdNormalizado };
+}
+
 export async function getSystemDashboardStats() {
   const isSystemAdmin = await isCurrentUserSystemAdmin();
   if (!isSystemAdmin) throw new Error('Apenas admin do sistema pode acessar os indicadores');
@@ -587,6 +635,14 @@ export async function getSystemDashboardStats() {
       const alunos = usuariosAcademia.filter((u) => u.role === ROLE_ALUNO).length;
       const professores = usuariosAcademia.filter((u) => u.role === ROLE_PROFESSOR).length;
       const adminsAcademia = usuariosAcademia.filter((u) => u.role === ROLE_ADMIN_ACADEMIA).length;
+      const adminsAcademiaLista = usuariosAcademia
+        .filter((u) => u.role === ROLE_ADMIN_ACADEMIA)
+        .map((u) => ({
+          id: u.id,
+          nome: u.nome || 'Admin',
+          email: u.email || ''
+        }))
+        .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || '')));
 
       const treinoCount = treinos.filter((t) => {
         const professor = usersById[t.professor_id];
@@ -604,6 +660,7 @@ export async function getSystemDashboardStats() {
         alunos,
         professores,
         admins_academia: adminsAcademia,
+        admins: adminsAcademiaLista,
         usuarios_total: usuariosAcademia.length,
         treinos: treinoCount,
         notificacoes: notifCount

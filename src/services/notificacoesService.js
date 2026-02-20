@@ -182,8 +182,18 @@ export async function gerarRelatorioEsforcoPorCategoria({ professorId = null, ac
 
   const itensPorTreino = await Promise.all(
     treinoIds.map(async (treinoId) => {
-      const snap = await getDocs(query(collection(db, 'treino_itens'), where('treino_id', '==', treinoId)));
-      return { treinoId, itens: snap.docs.map((docSnap) => docSnap.data() || {}) };
+      try {
+        const snap = await getDocs(query(collection(db, 'treino_itens'), where('treino_id', '==', treinoId)));
+        return { treinoId, itens: snap.docs.map((docSnap) => docSnap.data() || {}) };
+      } catch (err) {
+        const code = String(err?.code || '').toLowerCase();
+        const message = String(err?.message || '').toLowerCase();
+        const permissionDenied = code.includes('permission-denied') || message.includes('insufficient permissions');
+        if (permissionDenied) {
+          return { treinoId, itens: [] };
+        }
+        throw err;
+      }
     })
   );
 

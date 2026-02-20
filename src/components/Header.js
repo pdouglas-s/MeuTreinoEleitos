@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { ThemeContext } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -8,9 +8,9 @@ export default function Header({ title }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.primary }]}>
       <Text style={[styles.title, { color: theme.colors.card }]}>{title}</Text>
-      <TouchableOpacity onPress={toggle} style={styles.toggle} accessibilityLabel="toggle-theme">
+      <Pressable onPress={toggle} style={styles.toggle} accessibilityLabel="toggle-theme">
         <Ionicons name="moon" size={18} color={theme.colors.card} />
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Button, FlatList, TouchableOpacity, ScrollView, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Button, FlatList, Pressable, ScrollView, ImageBackground } from 'react-native';
 import theme from '../theme';
 import { Alert } from '../utils/alert';
 import { listItensByTreino, addItemToTreino, deleteItem, reorderItensByTreino, updateTreinoItem } from '../services/treinoItensService';
@@ -589,7 +589,7 @@ export default function TreinoDetail({ route, navigation }) {
         {!loading && itens.length === 0 && <Text style={styles.mutedText}>Nenhum exercício adicionado ainda</Text>}
         {!loading && itens.map((item) => (
           <View key={item.id} style={styles.itemRow}>
-            <TouchableOpacity style={{ flex: 1 }} onPress={() => canManageItens && startEditItem(item)} activeOpacity={0.8}>
+            <Pressable style={{ flex: 1 }} onPress={() => canManageItens && startEditItem(item)}>
               <Text style={{ fontSize: 16, color: theme.colors.text }}>{item.exercicio_nome}</Text>
               {!!formatExercicioResumo(item) && (
                 <Text style={{ color: theme.colors.muted }}>{formatExercicioResumo(item)}</Text>
@@ -603,35 +603,35 @@ export default function TreinoDetail({ route, navigation }) {
                   <TextInput placeholder="Repetições" style={styles.input} value={editItemRepeticoes} onChangeText={setEditItemRepeticoes} />
                   <TextInput placeholder="Carga (kg)" style={styles.input} value={editItemCarga} onChangeText={setEditItemCarga} keyboardType="numeric" />
                   <View style={styles.itemEditActions}>
-                    <TouchableOpacity style={styles.itemEditSaveBtn} onPress={() => handleSaveEditedItem(item)}>
+                    <Pressable style={styles.itemEditSaveBtn} onPress={() => handleSaveEditedItem(item)}>
                       <Text style={styles.itemEditSaveText}>Salvar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.itemEditCancelBtn} onPress={cancelEditItem}>
+                    </Pressable>
+                    <Pressable style={styles.itemEditCancelBtn} onPress={cancelEditItem}>
                       <Text style={styles.itemEditCancelText}>Cancelar</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                   </View>
                 </View>
               )}
-            </TouchableOpacity>
+            </Pressable>
             {canManageItens && (
               <View style={styles.itemActions}>
-                <TouchableOpacity
+                <Pressable
                   onPress={() => handleMoveItem(item.id, 'up')}
                   style={styles.orderBtn}
                   disabled={isSavingOrder}
                 >
                   <Text style={styles.orderBtnText}>↑</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </Pressable>
+                <Pressable
                   onPress={() => handleMoveItem(item.id, 'down')}
                   style={styles.orderBtn}
                   disabled={isSavingOrder}
                 >
                   <Text style={styles.orderBtnText}>↓</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
+                </Pressable>
+                <Pressable onPress={() => handleDeleteItem(item.id)} style={{ padding: 8 }}>
                   <Text style={{ color: '#dc2626' }}>Remover</Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
             )}
           </View>
@@ -660,7 +660,7 @@ export default function TreinoDetail({ route, navigation }) {
               {exerciciosEncontrados.map((ex) => {
                 const resumoBanco = formatExercicioBancoResumo(ex);
                 return (
-                  <TouchableOpacity 
+                  <Pressable 
                     key={ex.id} 
                     style={styles.exercicioItem} 
                     onPress={() => selecionarExercicio(ex)}
@@ -671,7 +671,7 @@ export default function TreinoDetail({ route, navigation }) {
                         {resumoBanco}
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </Pressable>
                 );
               })}
             </ScrollView>
@@ -731,12 +731,13 @@ export default function TreinoDetail({ route, navigation }) {
       )}
 
       {canEditTreino && (
-        <TouchableOpacity style={styles.deleteButton} onPress={confirmDeleteTreino}>
+        <Pressable style={styles.deleteButton} onPress={confirmDeleteTreino}>
           <Text style={styles.deleteButtonText}>
             {temAlunoAssociado ? '🗑️ Excluir associação' : '🗑️ Excluir treino'}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       )}
+
       </ScrollView>
     </View>
   );
@@ -926,8 +927,6 @@ const styles = StyleSheet.create({
     width: '100%',
     padding: theme.spacing(1.5),
     fontSize: 16,
-    border: 'none',
-    outline: 'none',
     backgroundColor: 'transparent'
   }
 });

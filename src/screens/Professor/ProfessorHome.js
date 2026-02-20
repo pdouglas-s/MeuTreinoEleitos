@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ImageBackground, InteractionManager } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, ActivityIndicator, ImageBackground, InteractionManager, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
 import { createAcademia, createAcademiaAdmin, createAluno, createProfessor, deleteProfessorProfile, listAcademias, listAllAlunos, listAllProfessores, unblockBlockedEmail } from '../../services/userService';
@@ -47,15 +47,17 @@ export default function ProfessorHome({ navigation }) {
   const [notifCount, setNotifCount] = useState(0);
   const [exerciciosPadraoCount, setExerciciosPadraoCount] = useState(0);
   const [exerciciosAcademiaCount, setExerciciosAcademiaCount] = useState(0);
+  const [academiaNomePainel, setAcademiaNomePainel] = useState('');
   const isSystemAdmin = profile?.role === 'admin_sistema';
   const isAcademyAdmin = profile?.role === 'admin_academia';
   const isProfessor = profile?.role === 'professor';
   const canBuildTreinoFicha = isProfessor || isAcademyAdmin;
   const canManageAcademyUsers = isAcademyAdmin;
   const canManageTreinos = isProfessor;
+  const academiaNomeExibicao = String(academiaNomePainel || profile?.academia_nome || '').trim();
   const pageTitle = isAcademyAdmin ? 'Painel da Academia' : 'Painel do Professor';
   const pageSubtitle = isAcademyAdmin
-    ? 'Gestão da academia'
+    ? (academiaNomeExibicao ? `Gestão da academia • ${academiaNomeExibicao}` : 'Gestão da academia')
     : `Treinos e acompanhamento • ${profile?.nome || ''}`;
   const heroCardTag = isAcademyAdmin ? 'ACADEMIA' : 'PROFESSOR';
   const heroCardTitle = isAcademyAdmin
@@ -78,6 +80,29 @@ export default function ProfessorHome({ navigation }) {
   const treinosComAlunoCount = alunosLoaded
     ? treinos.filter((item) => hasAlunoVinculado(item)).length
     : treinos.filter((item) => !!item.aluno_id).length;
+
+  useEffect(() => {
+    const academiaId = String(profile?.academia_id || '').trim();
+    if (!isAcademyAdmin || !academiaId) {
+      setAcademiaNomePainel('');
+      return undefined;
+    }
+
+    let active = true;
+    getDoc(doc(db, 'academias', academiaId))
+      .then((snapshot) => {
+        if (!active) return;
+        const nome = String(snapshot.data()?.nome || '').trim();
+        setAcademiaNomePainel(nome);
+      })
+      .catch(() => {
+        if (active) setAcademiaNomePainel('');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isAcademyAdmin, profile?.academia_id]);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -342,6 +367,7 @@ export default function ProfessorHome({ navigation }) {
     if (!isValidEmail(email)) return Alert.alert('Erro', 'Digite um e-mail válido');
     try {
       await createAluno({ nome, email });
+      await loadAlunos();
       Alert.alert('Sucesso', 'Aluno criado com senha padrão definida.');
       setNome('');
       setEmail('');
@@ -539,11 +565,10 @@ export default function ProfessorHome({ navigation }) {
           <Text style={styles.subtitle}>{pageSubtitle}</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
+          <Pressable 
             style={styles.notifBtn} 
             onPress={() => {
               navigation.navigate('Notificacoes');
-              loadNotificacoes(auth.currentUser?.uid);
             }}
           >
             <Ionicons name="notifications" size={22} color={theme.colors.primary} />
@@ -552,10 +577,10 @@ export default function ProfessorHome({ navigation }) {
                 <Text style={styles.badgeText}>{notifCount > 99 ? '99+' : notifCount}</Text>
               </View>
             )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          </Pressable>
+          <Pressable style={styles.logoutBtn} onPress={handleLogout}>
             <Text style={styles.logoutText}>🚪 Sair</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
 
@@ -573,25 +598,25 @@ export default function ProfessorHome({ navigation }) {
       </ImageBackground>
 
       {!isSystemAdmin && <View style={styles.statsRow}>
-        {isAcademyAdmin && (
-          <TouchableWithoutFeedback onPress={() => handleNavigateCard('AlunosList')}>
+        {(isAcademyAdmin || isProfessor) && (
+          <Pressable style={styles.statCardPressable} onPress={() => handleNavigateCard('AlunosList')}>
             <View style={styles.statCard}>
               <CardMedia variant="aluno" label="ALUNOS" compact />
               <Text style={styles.statValue}>{alunos.length}</Text>
               <Text style={styles.statLabel}>Alunos</Text>
             </View>
-          </TouchableWithoutFeedback>
+          </Pressable>
         )}
         {isAcademyAdmin && (
-          <TouchableWithoutFeedback onPress={() => handleNavigateCard('ProfessoresList')}>
+          <Pressable style={styles.statCardPressable} onPress={() => handleNavigateCard('ProfessoresList')}>
             <View style={styles.statCard}>
               <CardMedia variant="professor" label="PROFESSORES" compact />
               <Text style={styles.statValue}>{professores.length}</Text>
               <Text style={styles.statLabel}>Professores</Text>
             </View>
-          </TouchableWithoutFeedback>
+          </Pressable>
         )}
-        <TouchableWithoutFeedback onPress={() => handleNavigateCard('TreinosList')}>
+        <Pressable style={styles.statCardPressable} onPress={() => handleNavigateCard('TreinosList')}>
           <View style={styles.statCard}>
             <CardMedia variant="treino" label="TREINOS" compact />
             <Text style={styles.statValue}>{treinos.length}</Text>
@@ -599,7 +624,7 @@ export default function ProfessorHome({ navigation }) {
             <Text style={styles.statMetaText}>📋 Modelos: {treinosModeloCount}</Text>
             <Text style={styles.statMetaText}>👤 Associados: {treinosComAlunoCount}</Text>
           </View>
-        </TouchableWithoutFeedback>
+        </Pressable>
       </View>}
 
       {isAcademyAdmin && (
@@ -628,18 +653,18 @@ export default function ProfessorHome({ navigation }) {
 
       {!isSystemAdmin && (
         <View style={styles.statsRow}>
-          <TouchableWithoutFeedback onPress={() => handleNavigateCard('Notificacoes')}>
+          <Pressable style={styles.statCardPressable} onPress={() => handleNavigateCard('Notificacoes')}>
             <View style={styles.statCard}>
               <CardMedia variant="notificacao" label="NOTIFICAÇÕES" compact />
               <Text style={styles.statValue}>{notifCount}</Text>
               <Text style={styles.statLabel}>Notificações</Text>
             </View>
-          </TouchableWithoutFeedback>
+          </Pressable>
         </View>
       )}
 
       {isAcademyAdmin && (
-        <TouchableWithoutFeedback onPress={() => handleNavigateCard('RelatorioEsforco')}>
+        <Pressable onPress={() => handleNavigateCard('RelatorioEsforco')}>
           <View style={styles.reportCard}>
             <CardMedia variant="relatorio" label="RELATÓRIO" compact />
             <View style={styles.reportCardIconWrap}>
@@ -651,7 +676,7 @@ export default function ProfessorHome({ navigation }) {
             </View>
             <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
           </View>
-        </TouchableWithoutFeedback>
+        </Pressable>
       )}
 
       {isSystemAdmin && (
@@ -673,12 +698,27 @@ export default function ProfessorHome({ navigation }) {
             autoCapitalize="none"
           />
           <View style={styles.pickerContainer}>
-            <Picker selectedValue={academiaSelecionadaAdmin} onValueChange={setAcademiaSelecionadaAdmin} style={styles.picker}>
-              <Picker.Item label="Selecione uma academia" value="" />
-              {academias.map((academia) => (
-                <Picker.Item key={academia.id} label={academia.nome} value={academia.id} />
-              ))}
-            </Picker>
+            {Platform.OS === 'web' ? (
+              <select
+                style={styles.picker}
+                value={academiaSelecionadaAdmin}
+                onChange={(e) => setAcademiaSelecionadaAdmin(e.target.value)}
+              >
+                <option value="">Selecione uma academia</option>
+                {academias.map((academia) => (
+                  <option key={academia.id} value={academia.id}>
+                    {academia.nome}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Picker selectedValue={academiaSelecionadaAdmin} onValueChange={setAcademiaSelecionadaAdmin} style={styles.picker}>
+                <Picker.Item label="Selecione uma academia" value="" />
+                {academias.map((academia) => (
+                  <Picker.Item key={academia.id} label={academia.nome} value={academia.id} />
+                ))}
+              </Picker>
+            )}
           </View>
           <Button title="Criar Admin da Academia" onPress={handleCreateAdminAcademia} disabled={createAdminAcademiaDisabled} />
 
@@ -693,7 +733,7 @@ export default function ProfessorHome({ navigation }) {
         </View>
       )}
 
-      {isAcademyAdmin && <View style={styles.cardBlock}>
+      {!isSystemAdmin && <View style={styles.cardBlock}>
         <CardMedia variant="aluno" label="CADASTRO DE ALUNO" />
         <Text style={styles.blockTitle}>Cadastro de Aluno</Text>
         <Text style={styles.blockHint}>Crie alunos com senha padrão para início rápido.</Text>
@@ -759,15 +799,14 @@ export default function ProfessorHome({ navigation }) {
         {alunosEncontradosTreino.length > 0 && (
           <View style={styles.alunosSugestoesBox}>
             {alunosEncontradosTreino.map((aluno) => (
-              <TouchableOpacity
+              <Pressable
                 key={aluno.id}
                 style={styles.alunoSugestaoItem}
                 onPress={() => handleSelecionarAlunoTreino(aluno)}
-                activeOpacity={0.85}
               >
                 <Text style={styles.alunoSugestaoNome}>{aluno.nome}</Text>
                 <Text style={styles.alunoSugestaoEmail}>{aluno.email}</Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
         )}
@@ -775,7 +814,7 @@ export default function ProfessorHome({ navigation }) {
         {alunoSelecionadoInfo && (
           <View style={styles.alunoSelecionadoBox}>
             <Text style={styles.alunoSelecionadoText}>Selecionado: {alunoSelecionadoInfo.nome}</Text>
-            <TouchableOpacity
+            <Pressable
               onPress={() => {
                 setBuscaAlunoTreino('');
                 setAlunoSelecionadoTreino('');
@@ -784,7 +823,7 @@ export default function ProfessorHome({ navigation }) {
               }}
             >
               <Text style={styles.alunoSelecionadoRemover}>Limpar</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         )}
         <Button
@@ -871,6 +910,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: theme.spacing(1.5)
+  },
+  statCardPressable: {
+    flex: 1
   },
   statCard: {
     flex: 1,

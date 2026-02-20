@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, FlatList, Pressable as TouchableOpacity, Pressable as TouchableWithoutFeedback } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
@@ -55,13 +55,15 @@ export default function GerenciarExercicios({ navigation }) {
   async function loadExercicios() {
     try {
       const academiaIdAtual = String(profile?.academia_id || '').trim();
-      const [list, professoresList] = await Promise.all([
-        listAllExercicios({ academiaId: academiaIdAtual }),
-        listAllProfessores().catch(() => [])
-      ]);
+      const promises = [listAllExercicios({ academiaId: academiaIdAtual })];
+      if (isAcademyAdmin) {
+        promises.push(listAllProfessores());
+      }
+
+      const [list, professoresList] = await Promise.all(promises);
       list.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nome.localeCompare(b.nome));
       setExercicios(list);
-      setProfessoresAcademia(professoresList);
+      setProfessoresAcademia(Array.isArray(professoresList) ? professoresList : []);
       
       // Verificar se existem exercícios padrão
       const temPadrao = await existemExerciciosPadrao();
@@ -101,7 +103,9 @@ export default function GerenciarExercicios({ navigation }) {
 
   async function handleDeleteExercicio(exercicio) {
     try {
-      if (isAcademyAdmin && exercicio?.is_padrao === true) {
+      const isOcultacaoPadraoAcademia = isAcademyAdmin && exercicio?.is_padrao === true;
+
+      if (isOcultacaoPadraoAcademia) {
         const academiaIdAtual = String(profile?.academia_id || '').trim();
         try {
           await ocultarExercicioPadraoParaAcademia({
@@ -419,7 +423,6 @@ export default function GerenciarExercicios({ navigation }) {
         <TouchableOpacity
           style={[styles.statCard, filtroAtivo === 'todos' && styles.statCardActive]}
           onPress={() => setFiltroAtivo('todos')}
-          activeOpacity={0.85}
         >
           <CardMedia variant="exercicio" label="EXERCÍCIOS" compact />
           <Text style={styles.statValue}>{exerciciosVisiveis.length}</Text>
@@ -428,7 +431,6 @@ export default function GerenciarExercicios({ navigation }) {
         <TouchableOpacity
           style={[styles.statCard, filtroAtivo === 'academia' && styles.statCardActive]}
           onPress={() => alternarFiltro('academia')}
-          activeOpacity={0.85}
         >
           <CardMedia variant="academia" label="DA ACADEMIA" compact />
           <Text style={styles.statValue}>{totalAcademia}</Text>
@@ -437,7 +439,6 @@ export default function GerenciarExercicios({ navigation }) {
         <TouchableOpacity
           style={[styles.statCard, filtroAtivo === 'padrao' && styles.statCardActive]}
           onPress={() => alternarFiltro('padrao')}
-          activeOpacity={0.85}
         >
           <CardMedia variant="sistema" label="PADRÃO" compact />
           <Text style={styles.statValue}>{totalPadrao}</Text>
@@ -523,7 +524,6 @@ export default function GerenciarExercicios({ navigation }) {
             onPress={() => {
               if (editandoId !== item.id) iniciarEdicao(item);
             }}
-            activeOpacity={0.85}
           >
             <View style={{ flex: 1 }}>
               {editandoId === item.id ? (

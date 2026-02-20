@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../theme';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { listarNotificacoesProfessor, listarNotificacoesAluno, listarNotificacoesAcademia, marcarComoLida, marcarTodasComoLidas, marcarTodasComoLidasAluno, marcarTodasComoLidasAcademia } from '../../services/notificacoesService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
@@ -22,10 +22,12 @@ export default function NotificacoesScreen({ navigation }) {
   const [notificacoes, setNotificacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [academiaNomePainel, setAcademiaNomePainel] = useState('');
   const userId = auth.currentUser?.uid || profile?.id || profile?.uid || null;
   const isAcademyAdmin = profile?.role === 'admin_academia';
   const isProfessor = ['professor', 'admin_sistema'].includes(profile?.role);
   const isAluno = !isAcademyAdmin && !isProfessor;
+  const academiaNomeExibicao = String(academiaNomePainel || profile?.academia_nome || '').trim();
   const roleHeroImage = isAluno
     ? alunoNotifsHeroImage
     : (isAcademyAdmin ? academiaNotifsHeroImage : professorNotifsHeroImage);
@@ -45,7 +47,32 @@ export default function NotificacoesScreen({ navigation }) {
       : 'Acompanhe início, progresso e finalização dos treinos');
   const roleHeaderTitle = isAluno
     ? 'Seu Feed de Treino'
-    : (isAcademyAdmin ? 'Feed da Academia' : 'Feed do Professor');
+    : (isAcademyAdmin
+      ? (academiaNomeExibicao ? `Feed da Academia • ${academiaNomeExibicao}` : 'Feed da Academia')
+      : 'Feed do Professor');
+
+  useEffect(() => {
+    const academiaId = String(profile?.academia_id || '').trim();
+    if (!isAcademyAdmin || !academiaId) {
+      setAcademiaNomePainel('');
+      return undefined;
+    }
+
+    let active = true;
+    getDoc(doc(db, 'academias', academiaId))
+      .then((snapshot) => {
+        if (!active) return;
+        const nome = String(snapshot.data()?.nome || '').trim();
+        setAcademiaNomePainel(nome);
+      })
+      .catch(() => {
+        if (active) setAcademiaNomePainel('');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isAcademyAdmin, profile?.academia_id]);
 
   useEffect(() => {
     if (!userId) {
@@ -235,9 +262,9 @@ export default function NotificacoesScreen({ navigation }) {
           )}
         </View>
         {naoLidas > 0 && (
-          <TouchableOpacity style={styles.markAllBtn} onPress={handleMarcarTodasLidas}>
+          <Pressable style={styles.markAllBtn} onPress={handleMarcarTodasLidas}>
             <Text style={styles.markAllText}>Marcar todas</Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
@@ -269,10 +296,9 @@ export default function NotificacoesScreen({ navigation }) {
           renderItem={({ item }) => {
             const icone = getIcone(item.tipo);
             return (
-              <TouchableOpacity
+              <Pressable
                 style={[styles.notifCard, !item.lida && styles.notifCardUnread]}
                 onPress={() => handleMarcarLida(item.id, item.lida)}
-                activeOpacity={0.7}
               >
                 <View style={styles.notifMediaWrap}>
                   <CardMedia variant="notificacao" label={String(item?.tipo || 'atividade').replace(/_/g, ' ').toUpperCase()} compact />
@@ -287,7 +313,7 @@ export default function NotificacoesScreen({ navigation }) {
                   <Text style={styles.notifTime}>{formatarData(item.created_at)}</Text>
                 </View>
                 {!item.lida && <View style={styles.unreadDot} />}
-              </TouchableOpacity>
+              </Pressable>
             );
           }}
         />

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, Pressable as TouchableWithoutFeedback } from 'react-native';
 import theme from '../../theme';
 import { deleteProfessorProfile, listAllProfessores, updateManagedUserProfile } from '../../services/userService';
 import { Alert } from '../../utils/alert';

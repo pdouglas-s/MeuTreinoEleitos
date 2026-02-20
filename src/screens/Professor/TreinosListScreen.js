@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ActivityIndicator, TouchableWithoutFeedback, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, Pressable, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import theme from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -160,11 +160,11 @@ export default function TreinosListScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <TouchableWithoutFeedback onPress={() => navigation.goBack()}>
+      <Pressable onPress={() => navigation.goBack()}>
         <View style={styles.backBtn}>
           <Text style={styles.backBtnText}>← Voltar ao painel</Text>
         </View>
-      </TouchableWithoutFeedback>
+      </Pressable>
       <Text style={styles.title}>Treinos</Text>
       <TextInput
         placeholder="Buscar por treino ou aluno"
@@ -183,9 +183,8 @@ export default function TreinosListScreen({ navigation }) {
           const grupoAberto = !!gruposAbertos[grupo.key];
           return (
             <View key={grupo.key} style={styles.groupCard}>
-              <TouchableOpacity
+              <Pressable
                 style={styles.groupHeader}
-                activeOpacity={0.85}
                 onPress={() => alternarGrupo(grupo.key)}
               >
                 <View style={{ flex: 1 }}>
@@ -194,11 +193,11 @@ export default function TreinosListScreen({ navigation }) {
                   <Text style={styles.groupMeta}>{grupo.items.length} treino(s)</Text>
                 </View>
                 <Text style={styles.groupChevron}>{grupoAberto ? '▾' : '▸'}</Text>
-              </TouchableOpacity>
+              </Pressable>
 
               {grupoAberto && grupo.items.map((item) => (
                 <View key={item.id} style={styles.itemRow}>
-                  <TouchableWithoutFeedback onPress={() => handleOpenTreino(item)}>
+                  <Pressable onPress={() => handleOpenTreino(item)}>
                     <View style={styles.itemContent}>
                       <Text style={styles.itemNome}>{item.nome_treino}</Text>
                       <Text style={styles.itemSub}>
@@ -207,13 +206,13 @@ export default function TreinosListScreen({ navigation }) {
                           : '📋 Treino modelo (sem aluno)'}
                       </Text>
                     </View>
-                  </TouchableWithoutFeedback>
+                  </Pressable>
                   {!String(item?.aluno_id || '').trim() && (
-                    <TouchableWithoutFeedback onPress={() => handleDeleteTreino(item)}>
+                    <Pressable onPress={() => handleDeleteTreino(item)}>
                       <View style={styles.deleteBtn}>
                         <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
                       </View>
-                    </TouchableWithoutFeedback>
+                    </Pressable>
                   )}
                 </View>
               ))}

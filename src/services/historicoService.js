@@ -41,6 +41,27 @@ function calcularDuracaoSessaoSegundos(sessao = {}) {
   return Number.isFinite(ms) ? Math.max(0, Math.floor(ms / 1000)) : 0;
 }
 
+function upsertExercicioSessao(exercicios = [], exercicioData = {}) {
+  const nome = String(exercicioData?.exercicio_nome || '').trim().toLowerCase();
+  if (!nome) return exercicios;
+
+  const indiceExistente = exercicios.findIndex((item) => String(item?.exercicio_nome || '').trim().toLowerCase() === nome);
+  if (indiceExistente === -1) {
+    return [...exercicios, exercicioData];
+  }
+
+  const atual = exercicios[indiceExistente] || {};
+  const atualizado = {
+    ...atual,
+    ...exercicioData,
+    concluido_em: exercicioData?.concluido_em || atual?.concluido_em || null
+  };
+
+  const copia = [...exercicios];
+  copia[indiceExistente] = atualizado;
+  return copia;
+}
+
 /**
  * Cria uma sessão de treino (treino do dia)
  */
@@ -77,14 +98,32 @@ export async function marcarExercicioConcluido(sessaoId, exercicioData) {
   if (!sessaoDoc.exists()) throw new Error('Sessão não encontrada');
 
   const sessaoData = sessaoDoc.data();
-  const exercicios = sessaoData.exercicios || [];
-  exercicios.push(exercicioCompleto);
+  const exercicios = upsertExercicioSessao(sessaoData.exercicios || [], exercicioCompleto);
   
   await updateDoc(sessaoRef, {
     exercicios
   });
   
   return exercicioCompleto;
+}
+
+export async function salvarExercicioSessao(sessaoId, exercicioData) {
+  const sessaoRef = doc(db, 'sessoes_treino', sessaoId);
+  const payload = removeUndefinedFields({
+    ...exercicioData
+  });
+
+  const sessaoDoc = await getDoc(sessaoRef);
+  if (!sessaoDoc.exists()) throw new Error('Sessão não encontrada');
+
+  const sessaoData = sessaoDoc.data() || {};
+  const exercicios = upsertExercicioSessao(sessaoData.exercicios || [], payload);
+
+  await updateDoc(sessaoRef, {
+    exercicios
+  });
+
+  return payload;
 }
 
 /**

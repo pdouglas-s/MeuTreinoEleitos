@@ -1,12 +1,13 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeContext, light, dark } from './src/theme';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import Constants from 'expo-constants';
 
-const Stack = createNativeStackNavigator();
+const Stack = Platform.OS === 'web'
+  ? require('@react-navigation/stack').createStackNavigator()
+  : require('@react-navigation/native-stack').createNativeStackNavigator();
 
 function readPublicEnv(name) {
   const extraValue = Constants.expoConfig?.extra?.[name];
@@ -55,6 +56,38 @@ export default function App() {
   const [theme, setTheme] = useState(light);
   function toggle() { setTheme((t) => (t === light ? dark : light)); }
 
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    const ignored = [
+      'setNativeProps is deprecated',
+      "Trying to remove a child that doesn't exist",
+      'useNativeDriver` is not supported because the native animated module is missing'
+    ];
+
+    const shouldIgnore = (args = []) => {
+      const joined = args.map((item) => String(item || '')).join(' ');
+      return ignored.some((snippet) => joined.includes(snippet));
+    };
+
+    console.warn = (...args) => {
+      if (shouldIgnore(args)) return;
+      originalWarn(...args);
+    };
+
+    console.error = (...args) => {
+      if (shouldIgnore(args)) return;
+      originalError(...args);
+    };
+
+    return () => {
+      console.warn = originalWarn;
+      console.error = originalError;
+    };
+  }, []);
+
   const configured = isFirebaseConfigured();
 
   // Se Firebase não está configurado, mostra tela de erro SEM carregar as outras telas
@@ -74,6 +107,13 @@ export default function App() {
 // Componente de navegação que usa o contexto de autenticação
 function AppNavigator() {
   const { loading, isAuthenticated, profile } = useAuth();
+  const webScreenOptions = Platform.OS === 'web'
+    ? {
+        animationEnabled: false,
+        animation: 'none',
+        gestureEnabled: false
+      }
+    : {};
 
   // Somente carrega as telas quando Firebase estiver configurado
   const LoginScreen = lazy(() => import('./src/screens/LoginScreen'));
@@ -114,7 +154,7 @@ function AppNavigator() {
   return (
     <Suspense fallback={<Loading />}>
       <NavigationContainer>
-        <Stack.Navigator initialRouteName={initialRoute}>
+        <Stack.Navigator initialRouteName={initialRoute} screenOptions={webScreenOptions}>
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Criar Conta' }} />
           <Stack.Screen name="SystemAdminHome" component={SystemAdminHome} options={{ title: 'Sistema' }} />
@@ -127,8 +167,7 @@ function AppNavigator() {
             name="GerenciarExercicios"
             component={GerenciarExercicios}
             options={{
-              headerShown: false,
-              ...(Platform.OS === 'web' ? { animation: 'none' } : {})
+              headerShown: false
             }}
           />
           <Stack.Screen name="Notificacoes" component={NotificacoesScreen} options={{ title: 'Notificações' }} />
@@ -136,24 +175,21 @@ function AppNavigator() {
             name="AlunosList"
             component={AlunosListScreen}
             options={{
-              headerShown: false,
-              ...(Platform.OS === 'web' ? { animation: 'none' } : {})
+              headerShown: false
             }}
           />
           <Stack.Screen
             name="ProfessoresList"
             component={ProfessoresListScreen}
             options={{
-              headerShown: false,
-              ...(Platform.OS === 'web' ? { animation: 'none' } : {})
+              headerShown: false
             }}
           />
           <Stack.Screen
             name="TreinosList"
             component={TreinosListScreen}
             options={{
-              headerShown: false,
-              ...(Platform.OS === 'web' ? { animation: 'none' } : {})
+              headerShown: false
             }}
           />
           <Stack.Screen name="RelatorioEsforco" component={RelatorioEsforcoScreen} options={{ title: 'Relatório de Esforço' }} />

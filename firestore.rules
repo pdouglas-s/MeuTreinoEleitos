@@ -43,6 +43,10 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/emails_bloqueados/$(email));
     }
 
+    function emailJaUsadoNaAcademia(email, academiaId) {
+      return false;
+    }
+
     function isSameAcademia(academiaId) {
       return academiaId != null
         && myAcademiaId() != null
@@ -105,10 +109,11 @@ service cloud.firestore {
       );
 
       allow create: if request.auth != null
-        && request.resource.data.keys().hasAll(['nome', 'email', 'role', 'primeiro_acesso'])
-        && isValidEmail(request.resource.data.email)
-        && !isBlockedEmail(request.resource.data.email)
-        && (
+          && request.resource.data.keys().hasAll(['nome', 'email', 'role', 'primeiro_acesso'])
+          && isValidEmail(request.resource.data.email)
+          && !isBlockedEmail(request.resource.data.email)
+          && !emailJaUsadoNaAcademia(request.resource.data.email, request.resource.data.academia_id)
+          && (
           (
             request.auth.uid == userId
             && request.resource.data.role == 'admin_sistema'
@@ -216,13 +221,25 @@ service cloud.firestore {
           isAcademyStaff()
           && treinoDocById(request.resource.data.treino_id).is_padrao != true
         );
-      allow update, delete: if request.auth != null
+      allow update: if request.auth != null
+        && resource.data.treino_id != null
+        && (
+          (
+            isSameAcademia(treinoDocById(resource.data.treino_id).academia_id)
+            && isAcademyStaff()
+            && treinoDocById(resource.data.treino_id).is_padrao != true
+          )
+          || (
+            treinoDocById(resource.data.treino_id).aluno_id == request.auth.uid
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(['carga'])
+          )
+        );
+
+      allow delete: if request.auth != null
         && resource.data.treino_id != null
         && isSameAcademia(treinoDocById(resource.data.treino_id).academia_id)
-        && (
-          isAcademyStaff()
-          && treinoDocById(resource.data.treino_id).is_padrao != true
-        );
+        && isAcademyStaff()
+        && treinoDocById(resource.data.treino_id).is_padrao != true;
     }
 
     match /avaliacoes/{docId} {
@@ -300,17 +317,8 @@ service cloud.firestore {
           && resource.data.academia_id is string
           && isSameAcademia(resource.data.academia_id)
         )
-        || (
-          isAcademyStaff()
-          && resource.data.professor_id is string
-          && isSameAcademia(get(/databases/$(database)/documents/users/$(resource.data.professor_id)).data.academia_id)
-        )
-        || (
-          resource.data.aluno_id is string
-          && resource.data.aluno_id == request.auth.uid
-        )
-        ||
-        resource.data.professor_id == request.auth.uid
+        || (resource.data.professor_id is string && resource.data.professor_id == request.auth.uid)
+        || (resource.data.aluno_id is string && resource.data.aluno_id == request.auth.uid)
       );
       allow create: if request.auth != null;
       allow update: if request.auth != null

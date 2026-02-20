@@ -1,7 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList, RefreshControl, Share, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, Pressable as TouchableOpacity, ActivityIndicator, FlatList, RefreshControl, Share, ImageBackground } from 'react-native';
 import theme from '../../theme';
 import { auth } from '../../firebase/config';
+import { db } from '../../firebase/config';
+import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from '../../utils/alert';
 import { getAuthErrorMessage } from '../../utils/authErrors';
@@ -62,6 +64,7 @@ export default function RelatorioEsforcoScreen() {
   const [periodoDias, setPeriodoDias] = useState(30);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [academiaNomePainel, setAcademiaNomePainel] = useState('');
   const [relatorio, setRelatorio] = useState({
     periodoDias: 30,
     totalNotificacoesConsideradas: 0,
@@ -106,10 +109,36 @@ export default function RelatorioEsforcoScreen() {
     carregarRelatorio(periodoDias);
   }, [carregarRelatorio, periodoDias]);
 
+  React.useEffect(() => {
+    const academiaId = String(profile?.academia_id || '').trim();
+    if (!isAcademyAdmin || !academiaId) {
+      setAcademiaNomePainel('');
+      return undefined;
+    }
+
+    let active = true;
+    getDoc(doc(db, 'academias', academiaId))
+      .then((snapshot) => {
+        if (!active) return;
+        const nome = String(snapshot.data()?.nome || '').trim();
+        setAcademiaNomePainel(nome);
+      })
+      .catch(() => {
+        if (active) setAcademiaNomePainel('');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isAcademyAdmin, profile?.academia_id]);
+
   const subtitle = useMemo(() => {
-    if (isAcademyAdmin) return 'Base de dados da academia';
+    if (isAcademyAdmin) {
+      const academiaNomeExibicao = String(academiaNomePainel || profile?.academia_nome || '').trim();
+      return academiaNomeExibicao ? `Base de dados da academia • ${academiaNomeExibicao}` : 'Base de dados da academia';
+    }
     return 'Base de dados dos seus alunos';
-  }, [isAcademyAdmin]);
+  }, [isAcademyAdmin, academiaNomePainel, profile?.academia_nome]);
 
   function handleRefresh() {
     setRefreshing(true);
@@ -216,7 +245,7 @@ export default function RelatorioEsforcoScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.shareBtn} onPress={handleCompartilharResumo} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.shareBtn} onPress={handleCompartilharResumo}>
               <Text style={styles.shareBtnText}>Compartilhar resumo</Text>
             </TouchableOpacity>
 

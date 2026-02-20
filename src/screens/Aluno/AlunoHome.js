@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable as TouchableOpacity, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import TreinoCard from '../../components/TreinoCard';
 import { auth } from '../../firebase/config';
@@ -53,6 +53,14 @@ export default function AlunoHome({ navigation }) {
       });
     }
 
+    function sortTreinosByNome(list = []) {
+      return [...list].sort((a, b) => {
+        const nomeA = String(a?.nome_treino || '').trim();
+        const nomeB = String(b?.nome_treino || '').trim();
+        return nomeA.localeCompare(nomeB, 'pt-BR', { sensitivity: 'base' });
+      });
+    }
+
     function watchItensPorTreino(treinosBase) {
       clearItensListeners();
       unsubscribeItens = treinosBase.map((treinoBase) => {
@@ -76,8 +84,9 @@ export default function AlunoHome({ navigation }) {
         })
       );
 
-      setTreinos(tWithItems);
-      return tWithItems;
+      const ordenados = sortTreinosByNome(tWithItems);
+      setTreinos(ordenados);
+      return ordenados;
     }
 
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -241,7 +250,6 @@ export default function AlunoHome({ navigation }) {
           <TouchableOpacity
             style={styles.groupHeader}
             onPress={() => setTreinosAbertos((prev) => !prev)}
-            activeOpacity={0.85}
           >
             <View>
               <Text style={styles.groupTitle}>Treinos disponíveis</Text>

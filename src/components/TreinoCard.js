@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, TextInput, Linking, ImageBackground } from 'react-native';
+import { View, Text, Pressable as TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, TextInput, Linking, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../theme';
-import { criarSessaoTreino, marcarExercicioConcluido, finalizarSessao, buscarSessaoAtiva, calcularTempoMedioAcademia, formatarDuracao } from '../services/historicoService';
+import { criarSessaoTreino, marcarExercicioConcluido, finalizarSessao, buscarSessaoAtiva, calcularTempoMedioAcademia, formatarDuracao, salvarExercicioSessao } from '../services/historicoService';
+import { updateTreinoItem } from '../services/treinoItensService';
 import { enviarNotificacao } from '../services/notificacoesService';
 import { sugerirPlaylistsTreino } from '../services/musicSuggestionService';
 import { Alert } from '../utils/alert';
@@ -101,11 +102,15 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
 
       return itensTreino.map((item) => {
         const exercicioAnterior = prev.find((prevItem) => prevItem.id === item.id || prevItem.exercicio_nome === item.exercicio_nome);
-        return { ...item, done: !!exercicioAnterior?.done };
+        return {
+          ...item,
+          carga: exercicioAnterior?.carga ?? item?.carga ?? null,
+          done: !!exercicioAnterior?.done
+        };
       });
     });
 
-  }, [treino.itens, sessaoId, nivelEsforco]);
+  }, [treino.itens, sessaoId]);
 
   useEffect(() => {
     if (!sessaoId || !playlistSugestao) return;
@@ -146,7 +151,11 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
           const concluido = exerciciosConcluidos.find(
             (ec) => ec.exercicio_nome === item.exercicio_nome
           );
-          return { ...item, done: !!concluido };
+          return {
+            ...item,
+            carga: concluido?.carga ?? item?.carga ?? null,
+            done: !!concluido?.concluido_em
+          };
         });
         setExercicios(exerciciosAtualizados);
       }
@@ -244,7 +253,12 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
     setPesoEditando('');
   }
 
-  function salvarPeso(index) {
+  async function salvarPeso(index) {
+    if (!sessaoId) {
+      Alert.alert('Atenção', 'Inicie o treino para salvar o peso no seu histórico.');
+      return;
+    }
+
     const valor = String(pesoEditando || '').trim();
     const normalizado = valor.replace(',', '.');
     if (normalizado && Number.isNaN(Number(normalizado))) {
@@ -253,8 +267,27 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
     }
 
     const proximoPeso = normalizado ? Number(normalizado) : null;
-    setExercicios((prev) => prev.map((item, i) => (i === index ? { ...item, carga: proximoPeso } : item)));
-    cancelarEdicaoPeso();
+    const exercicioAtual = exercicios[index];
+    if (!exercicioAtual) return;
+    const podeAtualizarFichaAluno = String(treino?.aluno_id || '').trim() === String(alunoId || '').trim();
+
+    try {
+      await salvarExercicioSessao(sessaoId, {
+        exercicio_nome: exercicioAtual.exercicio_nome,
+        series: exercicioAtual.series,
+        repeticoes: exercicioAtual.repeticoes,
+        carga: proximoPeso
+      });
+
+      if (podeAtualizarFichaAluno && exercicioAtual?.id) {
+        await updateTreinoItem(exercicioAtual.id, { carga: proximoPeso });
+      }
+
+      setExercicios((prev) => prev.map((item, i) => (i === index ? { ...item, carga: proximoPeso } : item)));
+      cancelarEdicaoPeso();
+    } catch (err) {
+      Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível salvar o peso no seu histórico.'));
+    }
   }
 
   function abrirFinalizacao() {
@@ -468,7 +501,7 @@ export default function TreinoCard({ treino, onOpen, alunoId, professorId, aluno
                     <Ionicons name="ellipse-outline" size={24} color={theme.colors.muted} style={{ opacity: sessaoId ? 1 : 0.4 }} />
                   )}
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.itemInfo} onPress={() => iniciarEdicaoPeso(index)} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.itemInfo} onPress={() => iniciarEdicaoPeso(index)}>
                   <Text style={[styles.itemTitle, item.done && styles.itemTitleDone]}>{item.exercicio_nome || 'Exercício'}</Text>
                   {!!formatExercicioResumo(item) && <Text style={styles.itemMeta}>{formatExercicioResumo(item)}</Text>}
                   <Text style={styles.itemHint}>Toque para editar apenas o peso</Text>

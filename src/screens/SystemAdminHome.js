@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, ActivityIndicator, TextInput, Button, ImageBackground, InteractionManager } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Pressable as TouchableOpacity, ActivityIndicator, TextInput, Button, ImageBackground, InteractionManager } from 'react-native';
 import theme from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert } from '../utils/alert';
 import { getAuthErrorMessage } from '../utils/authErrors';
-import { createAcademia, createAcademiaAdmin, getSystemDashboardStats } from '../services/userService';
+import { createAcademia, createAcademiaAdmin, getSystemDashboardStats, updateAcademiaAdminBySystem, updateAcademiaBySystem } from '../services/userService';
 import { listAllExercicios } from '../services/exerciciosService';
 import { isValidEmail } from '../utils/validation';
 import CardMedia from '../components/CardMedia';
@@ -46,6 +46,12 @@ export default function SystemAdminHome({ navigation }) {
   const [academiaSelecionada, setAcademiaSelecionada] = useState('');
   const [buscaAcademiaAdmin, setBuscaAcademiaAdmin] = useState('');
   const [academiaSelecionadaInfo, setAcademiaSelecionadaInfo] = useState(null);
+  const [showAcademiasCards, setShowAcademiasCards] = useState(false);
+  const [editAcademiaId, setEditAcademiaId] = useState('');
+  const [editAcademiaNome, setEditAcademiaNome] = useState('');
+  const [editAdminId, setEditAdminId] = useState('');
+  const [editAdminNome, setEditAdminNome] = useState('');
+  const [editAdminEmail, setEditAdminEmail] = useState('');
   const navigateGuardRef = useRef(false);
   const [exerciciosPadraoCount, setExerciciosPadraoCount] = useState(0);
   const [exerciciosAcademiaCount, setExerciciosAcademiaCount] = useState(0);
@@ -138,6 +144,10 @@ export default function SystemAdminHome({ navigation }) {
 
   const resumo = stats?.resumo || {};
   const porAcademia = stats?.por_academia || [];
+  const academiaEmEdicao = useMemo(
+    () => porAcademia.find((item) => item.academia_id === editAcademiaId) || null,
+    [porAcademia, editAcademiaId]
+  );
   const academiasEncontradas = useMemo(() => {
     const termo = String(buscaAcademiaAdmin || '').trim().toLowerCase();
     if (termo.length < 2) return [];
@@ -151,6 +161,60 @@ export default function SystemAdminHome({ navigation }) {
     setAcademiaSelecionada(item.academia_id);
     setAcademiaSelecionadaInfo(item);
     setBuscaAcademiaAdmin('');
+  }
+
+  function handleSelecionarAcademiaParaAtualizacao(item) {
+    const academiaId = String(item?.academia_id || '').trim();
+    const academiaNome = String(item?.academia_nome || '').trim();
+    const admins = Array.isArray(item?.admins) ? item.admins : [];
+    const primeiroAdmin = admins[0] || null;
+
+    setEditAcademiaId(academiaId);
+    setEditAcademiaNome(academiaNome);
+    setEditAdminId(primeiroAdmin?.id || '');
+    setEditAdminNome(primeiroAdmin?.nome || '');
+    setEditAdminEmail(primeiroAdmin?.email || '');
+  }
+
+  function handleSelecionarAdminParaAtualizacao(admin) {
+    setEditAdminId(admin?.id || '');
+    setEditAdminNome(admin?.nome || '');
+    setEditAdminEmail(admin?.email || '');
+  }
+
+  async function handleAtualizarAcademiaSelecionada() {
+    if (!editAcademiaId || !editAcademiaNome.trim()) {
+      return Alert.alert('Erro', 'Selecione uma academia e informe o nome para atualizar.');
+    }
+
+    try {
+      await updateAcademiaBySystem({ academiaId: editAcademiaId, nome: editAcademiaNome });
+      await loadDashboard();
+      Alert.alert('Sucesso', 'Academia atualizada com sucesso.');
+    } catch (error) {
+      Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível atualizar a academia.'));
+    }
+  }
+
+  async function handleAtualizarAdminSelecionado() {
+    if (!editAdminId || !editAdminNome.trim() || !editAdminEmail.trim()) {
+      return Alert.alert('Erro', 'Selecione um administrador e preencha nome e e-mail.');
+    }
+    if (!isValidEmail(editAdminEmail)) {
+      return Alert.alert('Erro', 'Digite um e-mail válido');
+    }
+
+    try {
+      await updateAcademiaAdminBySystem({
+        adminId: editAdminId,
+        nome: editAdminNome,
+        email: editAdminEmail
+      });
+      await loadDashboard();
+      Alert.alert('Sucesso', 'Administrador atualizado com sucesso.');
+    } catch (error) {
+      Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível atualizar o administrador.'));
+    }
   }
 
   function handleOpenGerenciarExercicios() {
@@ -251,7 +315,6 @@ export default function SystemAdminHome({ navigation }) {
                         key={item.academia_id}
                         style={styles.academiaSugestaoItem}
                         onPress={() => handleSelecionarAcademia(item)}
-                        activeOpacity={0.85}
                       >
                         <Text style={styles.academiaSugestaoNome}>{item.academia_nome}</Text>
                         <Text style={styles.academiaSugestaoMeta}>Alunos: {item.alunos} • Professores: {item.professores}</Text>
@@ -303,7 +366,13 @@ export default function SystemAdminHome({ navigation }) {
               </Pressable>
 
               <View style={styles.gridRow}>
-                <InfoCard title="Academias" value={resumo.total_academias || 0} subtitle="Total cadastradas" />
+                <Pressable style={styles.cardPressable} onPress={() => setShowAcademiasCards((prev) => !prev)}>
+                  <InfoCard
+                    title="Academias"
+                    value={resumo.total_academias || 0}
+                    subtitle={showAcademiasCards ? 'Toque para ocultar lista' : 'Toque para ver lista e atualização'}
+                  />
+                </Pressable>
                 <InfoCard title="Alunos" value={resumo.total_alunos || 0} subtitle="Total no sistema" />
               </View>
               <View style={styles.gridRow}>
@@ -346,6 +415,94 @@ export default function SystemAdminHome({ navigation }) {
                   </View>
                 ))}
               </View>
+
+              {showAcademiasCards && (
+                <View style={styles.cardBlock}>
+                  <CardMedia variant="academia" label="ACADEMIAS E GESTORES" />
+                  <Text style={styles.blockTitle}>Academias cadastradas e administradores</Text>
+                  {porAcademia.length === 0 && <Text style={styles.emptyText}>Nenhuma academia cadastrada.</Text>}
+
+                  {porAcademia.map((item) => (
+                    <View key={item.academia_id} style={styles.academiaAdminCard}>
+                      <View style={styles.academiaAdminHeader}>
+                        <View style={styles.academiaAdminContent}>
+                          <Text style={styles.academiaNome}>{item.academia_nome}</Text>
+                          <Text style={styles.academiaInfo}>ID: {item.academia_id}</Text>
+                          <Text style={styles.academiaInfo}>Alunos: {item.alunos} • Professores: {item.professores} • Admins: {item.admins_academia}</Text>
+                        </View>
+                        <Pressable style={styles.selectUpdateBtn} onPress={() => handleSelecionarAcademiaParaAtualizacao(item)}>
+                          <Text style={styles.selectUpdateText}>Selecionar para atualização</Text>
+                        </Pressable>
+                      </View>
+
+                      {Array.isArray(item.admins) && item.admins.length > 0 ? (
+                        <View style={styles.adminListWrap}>
+                          {item.admins.map((admin) => (
+                            <Text key={admin.id} style={styles.adminListItem}>• {admin.nome} ({admin.email})</Text>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={styles.emptyText}>Sem administradores cadastrados nesta academia.</Text>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {showAcademiasCards && editAcademiaId && (
+                <View style={styles.cardBlock}>
+                  <CardMedia variant="sistema" label="ATUALIZAÇÃO" />
+                  <Text style={styles.blockTitle}>Atualizar academia e gestores</Text>
+
+                  <Text style={styles.sectionLabel}>Academia selecionada</Text>
+                  <TextInput
+                    placeholder="Nome da academia"
+                    value={editAcademiaNome}
+                    onChangeText={setEditAcademiaNome}
+                    style={styles.input}
+                  />
+                  <Button title="Atualizar Academia" onPress={handleAtualizarAcademiaSelecionada} disabled={!editAcademiaNome.trim()} />
+
+                  <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Administrador da academia</Text>
+                  {academiaEmEdicao?.admins?.length ? (
+                    <View style={styles.adminChipsWrap}>
+                      {academiaEmEdicao.admins.map((admin) => (
+                        <Pressable
+                          key={admin.id}
+                          style={[styles.adminChip, editAdminId === admin.id && styles.adminChipActive]}
+                          onPress={() => handleSelecionarAdminParaAtualizacao(admin)}
+                        >
+                          <Text style={[styles.adminChipText, editAdminId === admin.id && styles.adminChipTextActive]}>{admin.nome}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.emptyText}>Esta academia não possui administradores para atualizar.</Text>
+                  )}
+
+                  <TextInput
+                    placeholder="Nome do administrador"
+                    value={editAdminNome}
+                    onChangeText={setEditAdminNome}
+                    style={styles.input}
+                    editable={!!editAdminId}
+                  />
+                  <TextInput
+                    placeholder="E-mail do administrador"
+                    value={editAdminEmail}
+                    onChangeText={setEditAdminEmail}
+                    style={styles.input}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    editable={!!editAdminId}
+                  />
+                  <Button
+                    title="Atualizar Administrador"
+                    onPress={handleAtualizarAdminSelecionado}
+                    disabled={!editAdminId || !editAdminNome.trim() || !editAdminEmail.trim()}
+                  />
+                </View>
+              )}
             </>
           )}
         </ScrollView>
@@ -456,6 +613,9 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8
   },
+  cardPressable: {
+    flex: 1
+  },
   card: {
     flex: 1,
     backgroundColor: theme.colors.card,
@@ -556,6 +716,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 6
   },
+  sectionLabel: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6
+  },
   input: {
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -637,5 +803,72 @@ const styles = StyleSheet.create({
   academiaInfo: {
     color: theme.colors.muted,
     fontSize: 12
+  },
+  academiaAdminCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    padding: 10,
+    marginBottom: 8,
+    backgroundColor: theme.colors.background
+  },
+  academiaAdminHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8
+  },
+  academiaAdminContent: {
+    flex: 1
+  },
+  selectUpdateBtn: {
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radii.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 10
+  },
+  selectUpdateText: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  adminListWrap: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb'
+  },
+  adminListItem: {
+    color: theme.colors.text,
+    fontSize: 12,
+    marginBottom: 4
+  },
+  adminChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10
+  },
+  adminChip: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    paddingVertical: 6,
+    paddingHorizontal: 10
+  },
+  adminChipActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: '#dbeafe'
+  },
+  adminChipText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  adminChipTextActive: {
+    color: theme.colors.primary
   }
 });
