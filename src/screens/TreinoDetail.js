@@ -51,7 +51,8 @@ export default function TreinoDetail({ route, navigation }) {
   const [reps, setReps] = useState('');
   const [carga, setCarga] = useState('');
   const [editNome, setEditNome] = useState(treino.nome_treino || '');
-  
+  const [infoComplementar, setInfoComplementar] = useState(treino.info_complementar || '');
+
   // Busca de exercícios
   const [busca, setBusca] = useState('');
   const [todosExercicios, setTodosExercicios] = useState([]);
@@ -375,7 +376,7 @@ export default function TreinoDetail({ route, navigation }) {
         return;
       }
 
-      const updates = { nome_treino: editNome };
+      const updates = { nome_treino: editNome, info_complementar: infoComplementar };
       if (alunoSelecionado !== treino.aluno_id) {
         updates.aluno_id = alunoSelecionado;
       }
@@ -722,6 +723,15 @@ export default function TreinoDetail({ route, navigation }) {
             </Text>
           )}
           
+          <TextInput
+            placeholder="Informações complementares do treino"
+            style={styles.input}
+            value={infoComplementar}
+            onChangeText={setInfoComplementar}
+            multiline
+            numberOfLines={3}
+          />
+
           <Button
             title={alunoSelecionado && alunoSelecionado !== (treino.aluno_id || '') ? '🔗 Criar novo vínculo' : '💾 Salvar alterações'}
             onPress={handleUpdateTreino}

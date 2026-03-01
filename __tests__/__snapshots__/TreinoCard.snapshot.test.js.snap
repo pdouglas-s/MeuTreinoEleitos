@@ -149,7 +149,9 @@ exports[`TreinoCard snapshot 1`] = `
         accessible={true}
         collapsable={false}
         focusable={true}
+        onBlur={[Function]}
         onClick={[Function]}
+        onFocus={[Function]}
         onResponderGrant={[Function]}
         onResponderMove={[Function]}
         onResponderRelease={[Function]}
@@ -162,7 +164,6 @@ exports[`TreinoCard snapshot 1`] = `
             "borderColor": "#6b7280",
             "borderRadius": 6,
             "borderWidth": 1,
-            "opacity": 1,
             "paddingHorizontal": 8,
             "paddingVertical": 4,
           }
@@ -222,7 +223,9 @@ exports[`TreinoCard snapshot 1`] = `
     accessible={true}
     collapsable={false}
     focusable={true}
+    onBlur={[Function]}
     onClick={[Function]}
+    onFocus={[Function]}
     onResponderGrant={[Function]}
     onResponderMove={[Function]}
     onResponderRelease={[Function]}
@@ -237,7 +240,6 @@ exports[`TreinoCard snapshot 1`] = `
         "flexDirection": "row",
         "justifyContent": "center",
         "marginBottom": 12,
-        "opacity": 1,
         "padding": 10,
       }
     }
@@ -379,7 +381,9 @@ exports[`TreinoCard snapshot 1`] = `
               accessible={true}
               collapsable={false}
               focusable={true}
+              onBlur={[Function]}
               onClick={[Function]}
+              onFocus={[Function]}
               onResponderGrant={[Function]}
               onResponderMove={[Function]}
               onResponderRelease={[Function]}
@@ -387,15 +391,17 @@ exports[`TreinoCard snapshot 1`] = `
               onResponderTerminationRequest={[Function]}
               onStartShouldSetResponder={[Function]}
               style={
-                {
-                  "alignItems": "center",
-                  "borderRadius": 6,
-                  "height": 34,
-                  "justifyContent": "center",
-                  "marginRight": 12,
-                  "opacity": 1,
-                  "width": 34,
-                }
+                [
+                  {
+                    "alignItems": "center",
+                    "borderRadius": 6,
+                    "height": 34,
+                    "justifyContent": "center",
+                    "marginRight": 12,
+                    "width": 34,
+                  },
+                  false,
+                ]
               }
               testID="checkbox-0"
             >
@@ -431,7 +437,9 @@ exports[`TreinoCard snapshot 1`] = `
               accessible={true}
               collapsable={false}
               focusable={true}
+              onBlur={[Function]}
               onClick={[Function]}
+              onFocus={[Function]}
               onResponderGrant={[Function]}
               onResponderMove={[Function]}
               onResponderRelease={[Function]}
@@ -441,7 +449,6 @@ exports[`TreinoCard snapshot 1`] = `
               style={
                 {
                   "flex": 1,
-                  "opacity": 1,
                 }
               }
             >

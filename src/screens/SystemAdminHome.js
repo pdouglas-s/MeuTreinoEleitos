@@ -6,11 +6,154 @@ import { Alert } from '../utils/alert';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { createAcademia, createAcademiaAdmin, getSystemDashboardStats, updateAcademiaAdminBySystem, updateAcademiaBySystem } from '../services/userService';
 import { listAllExercicios } from '../services/exerciciosService';
+import { adminDeleteFirestore, adminInsertFirestore, adminSelectFirestore, adminUpdateFirestore } from '../services/firestoreAdminService';
 import { isValidEmail } from '../utils/validation';
 import CardMedia from '../components/CardMedia';
 
 const adminHeroImage = 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1600&q=80';
 const adminBackgroundImage = 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1600&q=80';
+const FIRESTORE_FILTER_OPERATORS = ['==', '!=', '<', '<=', '>', '>='];
+const FIRESTORE_SORT_DIRECTIONS = ['asc', 'desc'];
+const FIRESTORE_SELECT_PRESETS = [
+  {
+    key: 'users-admin-sistema',
+    label: 'Usuários admin_sistema',
+    collection: 'users',
+    mode: 'list',
+    limit: '25',
+    filterField: 'role',
+    filterOp: '==',
+    filterValue: '"admin_sistema"',
+    sortField: 'nome',
+    sortDirection: 'asc'
+  },
+  {
+    key: 'users-admin-academia',
+    label: 'Usuários admin_academia',
+    collection: 'users',
+    mode: 'list',
+    limit: '25',
+    filterField: 'role',
+    filterOp: '==',
+    filterValue: '"admin_academia"',
+    sortField: 'nome',
+    sortDirection: 'asc'
+  },
+  {
+    key: 'users-professores',
+    label: 'Usuários professores',
+    collection: 'users',
+    mode: 'list',
+    limit: '25',
+    filterField: 'role',
+    filterOp: '==',
+    filterValue: '"professor"',
+    sortField: 'nome',
+    sortDirection: 'asc'
+  },
+  {
+    key: 'users-alunos',
+    label: 'Usuários alunos',
+    collection: 'users',
+    mode: 'list',
+    limit: '50',
+    filterField: 'role',
+    filterOp: '==',
+    filterValue: '"aluno"',
+    sortField: 'nome',
+    sortDirection: 'asc'
+  },
+  {
+    key: 'academias',
+    label: 'Academias',
+    collection: 'academias',
+    mode: 'list',
+    limit: '25',
+    filterField: '',
+    filterOp: '==',
+    filterValue: '',
+    sortField: 'nome',
+    sortDirection: 'asc'
+  },
+  {
+    key: 'treinos',
+    label: 'Treinos (últimos)',
+    collection: 'treinos',
+    mode: 'list',
+    limit: '25',
+    filterField: '',
+    filterOp: '==',
+    filterValue: '',
+    sortField: '',
+    sortDirection: 'desc'
+  },
+  {
+    key: 'users-por-academia',
+    label: 'Usuários por academia_id',
+    collection: 'users',
+    mode: 'list',
+    limit: '50',
+    filterField: 'academia_id',
+    filterOp: '==',
+    filterValue: '"__ACADEMIA_ID__"',
+    sortField: 'nome',
+    sortDirection: 'asc',
+    requiresAcademiaId: true
+  },
+  {
+    key: 'treinos-por-academia',
+    label: 'Treinos por academia_id',
+    collection: 'treinos',
+    mode: 'list',
+    limit: '50',
+    filterField: 'academia_id',
+    filterOp: '==',
+    filterValue: '"__ACADEMIA_ID__"',
+    sortField: '',
+    sortDirection: 'desc',
+    requiresAcademiaId: true
+  },
+  {
+    key: 'notificacoes-por-academia',
+    label: 'Notificações por academia_id',
+    collection: 'notificacoes',
+    mode: 'list',
+    limit: '50',
+    filterField: 'academia_id',
+    filterOp: '==',
+    filterValue: '"__ACADEMIA_ID__"',
+    sortField: '',
+    sortDirection: 'desc',
+    requiresAcademiaId: true
+  }
+];
+
+export function resolveFirestoreSelectPreset(preset, firestorePresetAcademiaId) {
+  const academiaId = String(firestorePresetAcademiaId || '').trim();
+  const templateValue = String(preset?.filterValue || '');
+  const resolvedFilterValue = templateValue.includes('__ACADEMIA_ID__')
+    ? templateValue.replace('__ACADEMIA_ID__', academiaId)
+    : templateValue;
+
+  if (preset?.requiresAcademiaId && !academiaId) {
+    return { requiresAcademiaId: true, state: null };
+  }
+
+  return {
+    requiresAcademiaId: false,
+    state: {
+      collectionPath: String(preset?.collection || 'users'),
+      selectMode: String(preset?.mode || 'list'),
+      documentId: String(preset?.documentId || ''),
+      selectLimit: String(preset?.limit || '25'),
+      filterField: String(preset?.filterField || ''),
+      filterOp: String(preset?.filterOp || '=='),
+      filterValue: resolvedFilterValue,
+      sortField: String(preset?.sortField || ''),
+      sortDirection: String(preset?.sortDirection || 'asc')
+    }
+  };
+}
 
 function InfoCard({ title, value, subtitle, extraLines = [] }) {
   const mediaByTitle = {
@@ -52,6 +195,20 @@ export default function SystemAdminHome({ navigation }) {
   const [editAdminId, setEditAdminId] = useState('');
   const [editAdminNome, setEditAdminNome] = useState('');
   const [editAdminEmail, setEditAdminEmail] = useState('');
+  const [firestoreCollectionPath, setFirestoreCollectionPath] = useState('users');
+  const [firestoreSelectMode, setFirestoreSelectMode] = useState('doc');
+  const [firestoreDocumentId, setFirestoreDocumentId] = useState('');
+  const [firestoreSelectLimit, setFirestoreSelectLimit] = useState('25');
+  const [firestoreFilterField, setFirestoreFilterField] = useState('');
+  const [firestoreFilterOp, setFirestoreFilterOp] = useState('==');
+  const [firestoreFilterValue, setFirestoreFilterValue] = useState('');
+  const [firestoreSortField, setFirestoreSortField] = useState('');
+  const [firestoreSortDirection, setFirestoreSortDirection] = useState('asc');
+  const [firestorePresetAcademiaId, setFirestorePresetAcademiaId] = useState('');
+  const [firestorePayloadText, setFirestorePayloadText] = useState('{\n  \n}');
+  const [firestoreResultText, setFirestoreResultText] = useState('Nenhuma operação executada ainda.');
+  const [firestoreBusy, setFirestoreBusy] = useState(false);
+  const [showFirestoreConsole, setShowFirestoreConsole] = useState(false);
   const navigateGuardRef = useRef(false);
   const [exerciciosPadraoCount, setExerciciosPadraoCount] = useState(0);
   const [exerciciosAcademiaCount, setExerciciosAcademiaCount] = useState(0);
@@ -217,6 +374,146 @@ export default function SystemAdminHome({ navigation }) {
     }
   }
 
+  function parseFirestorePayload() {
+    const raw = String(firestorePayloadText || '').trim();
+    if (!raw) throw new Error('Informe um JSON no payload.');
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      throw new Error('JSON inválido no payload.');
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Payload deve ser um objeto JSON.');
+    }
+
+    return parsed;
+  }
+
+  function setFirestoreResult(data) {
+    setFirestoreResultText(JSON.stringify(data, null, 2));
+  }
+
+  function parseFirestoreFilterValue(rawValue) {
+    const raw = String(rawValue || '').trim();
+    if (!raw) return '';
+    try {
+      return JSON.parse(raw);
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  async function handleFirestoreSelect() {
+    setFirestoreBusy(true);
+    try {
+      const isDocMode = firestoreSelectMode === 'doc';
+      const data = await adminSelectFirestore({
+        collectionPath: firestoreCollectionPath,
+        documentId: isDocMode ? firestoreDocumentId : '',
+        limitCount: firestoreSelectLimit,
+        filters: !isDocMode && firestoreFilterField.trim()
+          ? [{
+              field: firestoreFilterField,
+              op: firestoreFilterOp,
+              value: parseFirestoreFilterValue(firestoreFilterValue)
+            }]
+          : [],
+        sort: !isDocMode && firestoreSortField.trim()
+          ? {
+              field: firestoreSortField,
+              direction: firestoreSortDirection
+            }
+          : null
+      });
+      setFirestoreResult({ total: data.length, docs: data });
+      Alert.alert('Sucesso', `${data.length} documento(s) retornado(s).`);
+    } catch (error) {
+      Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível executar o SELECT.'));
+    } finally {
+      setFirestoreBusy(false);
+    }
+  }
+
+  async function handleFirestoreInsert() {
+    setFirestoreBusy(true);
+    try {
+      const payload = parseFirestorePayload();
+      const result = await adminInsertFirestore({
+        collectionPath: firestoreCollectionPath,
+        documentId: firestoreDocumentId,
+        payload
+      });
+      setFirestoreResult({ action: 'insert', ...result, payload });
+      Alert.alert('Sucesso', `Documento inserido com id ${result.id}.`);
+    } catch (error) {
+      Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível executar o INSERT.'));
+    } finally {
+      setFirestoreBusy(false);
+    }
+  }
+
+  async function handleFirestoreUpdate() {
+    setFirestoreBusy(true);
+    try {
+      const payload = parseFirestorePayload();
+      const result = await adminUpdateFirestore({
+        collectionPath: firestoreCollectionPath,
+        documentId: firestoreDocumentId,
+        payload
+      });
+      setFirestoreResult({ action: 'update', ...result, payload });
+      Alert.alert('Sucesso', `Documento ${result.id} atualizado.`);
+    } catch (error) {
+      Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível executar o UPDATE.'));
+    } finally {
+      setFirestoreBusy(false);
+    }
+  }
+
+  async function handleFirestoreDelete() {
+    const canDelete = await Alert.confirm(
+      'Excluir documento',
+      'Essa ação remove o documento informado permanentemente. Deseja continuar?',
+      { confirmText: 'Excluir', cancelText: 'Cancelar', destructive: true }
+    );
+    if (!canDelete) return;
+
+    setFirestoreBusy(true);
+    try {
+      const result = await adminDeleteFirestore({
+        collectionPath: firestoreCollectionPath,
+        documentId: firestoreDocumentId
+      });
+      setFirestoreResult({ action: 'delete', ...result });
+      Alert.alert('Sucesso', `Documento ${result.id} removido.`);
+    } catch (error) {
+      Alert.alert('Erro', getAuthErrorMessage(error, 'Não foi possível executar o DELETE.'));
+    } finally {
+      setFirestoreBusy(false);
+    }
+  }
+
+  function handleApplySelectPreset(preset) {
+    const resolved = resolveFirestoreSelectPreset(preset, firestorePresetAcademiaId);
+    if (resolved.requiresAcademiaId) {
+      Alert.alert('Atenção', 'Preencha o ID da academia para usar este modelo.');
+      return;
+    }
+
+    setFirestoreCollectionPath(resolved.state.collectionPath);
+    setFirestoreSelectMode(resolved.state.selectMode);
+    setFirestoreDocumentId(resolved.state.documentId);
+    setFirestoreSelectLimit(resolved.state.selectLimit);
+    setFirestoreFilterField(resolved.state.filterField);
+    setFirestoreFilterOp(resolved.state.filterOp);
+    setFirestoreFilterValue(resolved.state.filterValue);
+    setFirestoreSortField(resolved.state.sortField);
+    setFirestoreSortDirection(resolved.state.sortDirection);
+  }
+
   function handleOpenGerenciarExercicios() {
     if (navigateGuardRef.current) return;
     navigateGuardRef.current = true;
@@ -364,6 +661,224 @@ export default function SystemAdminHome({ navigation }) {
                   </View>
                 </View>
               </Pressable>
+
+              <View style={styles.cardBlock}>
+                <Pressable
+                  style={({ pressed }) => [styles.consoleAccessCard, pressed && styles.consoleAccessCardPressed]}
+                  onPress={() => setShowFirestoreConsole((prev) => !prev)}
+                >
+                  <CardMedia variant="sistema" label="CONSOLE FIRESTORE" compact />
+                  <View style={styles.consoleAccessHeader}>
+                    <Text style={styles.consoleAccessTitle}>Acesso direto ao Firestore (Admin do Sistema)</Text>
+                    <Text style={styles.consoleAccessArrow}>{showFirestoreConsole ? '▾' : '▸'}</Text>
+                  </View>
+                  <Text style={styles.helperText}>
+                    {showFirestoreConsole
+                      ? 'Console aberto. Use coleção + modo de consulta para SELECT, e payload JSON para INSERT/UPDATE.'
+                      : 'Toque para abrir o console e executar SELECT, INSERT, UPDATE e DELETE.'}
+                  </Text>
+                </Pressable>
+
+                {showFirestoreConsole && (
+                  <>
+
+                  <Text style={styles.sectionLabel}>Modelos rápidos de SELECT</Text>
+                  <TextInput
+                    placeholder="ID da academia para presets por academia_id"
+                    value={firestorePresetAcademiaId}
+                    onChangeText={setFirestorePresetAcademiaId}
+                    style={styles.input}
+                    autoCapitalize="none"
+                  />
+                  <View style={styles.optionRow}>
+                    {FIRESTORE_SELECT_PRESETS.map((preset) => (
+                      <Pressable
+                        key={preset.key}
+                        style={({ pressed }) => [styles.optionChip, pressed && styles.modeBtnPressed]}
+                        onPress={() => handleApplySelectPreset(preset)}
+                      >
+                        <Text style={styles.optionChipText}>{preset.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <TextInput
+                    placeholder="Coleção (ex: users, treinos, academias)"
+                    value={firestoreCollectionPath}
+                    onChangeText={setFirestoreCollectionPath}
+                    style={styles.input}
+                    autoCapitalize="none"
+                  />
+                  <Text style={styles.sectionLabel}>Modo do SELECT</Text>
+                  <View style={styles.modeRow}>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.modeBtn,
+                        firestoreSelectMode === 'doc' && styles.modeBtnActive,
+                        pressed && styles.modeBtnPressed
+                      ]}
+                      onPress={() => setFirestoreSelectMode('doc')}
+                    >
+                      <Text style={[styles.modeBtnText, firestoreSelectMode === 'doc' && styles.modeBtnTextActive]}>Por ID</Text>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.modeBtn,
+                        firestoreSelectMode === 'list' && styles.modeBtnActive,
+                        pressed && styles.modeBtnPressed
+                      ]}
+                      onPress={() => setFirestoreSelectMode('list')}
+                    >
+                      <Text style={[styles.modeBtnText, firestoreSelectMode === 'list' && styles.modeBtnTextActive]}>Lista</Text>
+                    </Pressable>
+                  </View>
+
+                {firestoreSelectMode === 'doc' ? (
+                  <TextInput
+                    placeholder="ID do documento (obrigatório para SELECT por ID)"
+                    value={firestoreDocumentId}
+                    onChangeText={setFirestoreDocumentId}
+                    style={styles.input}
+                    autoCapitalize="none"
+                  />
+                ) : (
+                  <>
+                    <Text style={styles.sectionLabel}>Limite da lista</Text>
+                    <TextInput
+                      placeholder="25"
+                      value={firestoreSelectLimit}
+                      onChangeText={setFirestoreSelectLimit}
+                      style={styles.input}
+                      keyboardType="numeric"
+                    />
+
+                    <Text style={styles.sectionLabel}>Filtro opcional</Text>
+                    <TextInput
+                      placeholder="Campo do filtro (ex: role, academia_id)"
+                      value={firestoreFilterField}
+                      onChangeText={setFirestoreFilterField}
+                      style={styles.input}
+                      autoCapitalize="none"
+                    />
+                    <Text style={styles.sectionLabel}>Operador</Text>
+                    <View style={styles.optionRow}>
+                      {FIRESTORE_FILTER_OPERATORS.map((op) => (
+                        <Pressable
+                          key={op}
+                          style={({ pressed }) => [
+                            styles.optionChip,
+                            firestoreFilterOp === op && styles.optionChipActive,
+                            pressed && styles.modeBtnPressed
+                          ]}
+                          onPress={() => setFirestoreFilterOp(op)}
+                        >
+                          <Text style={[styles.optionChipText, firestoreFilterOp === op && styles.optionChipTextActive]}>{op}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <TextInput
+                      placeholder={'Valor do filtro (ex: "admin_sistema", true, 10)'}
+                      value={firestoreFilterValue}
+                      onChangeText={setFirestoreFilterValue}
+                      style={styles.input}
+                      autoCapitalize="none"
+                    />
+
+                    <Text style={styles.sectionLabel}>Ordenação opcional</Text>
+                    <TextInput
+                      placeholder="Campo de ordenação (ex: created_at, nome)"
+                      value={firestoreSortField}
+                      onChangeText={setFirestoreSortField}
+                      style={styles.input}
+                      autoCapitalize="none"
+                    />
+                    <View style={styles.optionRow}>
+                      {FIRESTORE_SORT_DIRECTIONS.map((direction) => (
+                        <Pressable
+                          key={direction}
+                          style={({ pressed }) => [
+                            styles.optionChip,
+                            firestoreSortDirection === direction && styles.optionChipActive,
+                            pressed && styles.modeBtnPressed
+                          ]}
+                          onPress={() => setFirestoreSortDirection(direction)}
+                        >
+                          <Text style={[styles.optionChipText, firestoreSortDirection === direction && styles.optionChipTextActive]}>{direction.toUpperCase()}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {firestoreSelectMode !== 'doc' && (
+                  <TextInput
+                    placeholder="ID do documento (INSERT com ID, UPDATE e DELETE)"
+                    value={firestoreDocumentId}
+                    onChangeText={setFirestoreDocumentId}
+                    style={styles.input}
+                    autoCapitalize="none"
+                  />
+                )}
+
+                <Text style={styles.sectionLabel}>Payload JSON (INSERT/UPDATE)</Text>
+                <TextInput
+                  placeholder={'{\n  "campo": "valor"\n}'}
+                  value={firestorePayloadText}
+                  onChangeText={setFirestorePayloadText}
+                  style={[styles.input, styles.payloadInput]}
+                  multiline
+                  textAlignVertical="top"
+                  autoCapitalize="none"
+                />
+
+                <View style={styles.firestoreActionsRow}>
+                  <Pressable
+                    style={({ pressed }) => [styles.firestoreActionBtn, pressed && styles.firestoreActionBtnPressed, firestoreBusy && styles.firestoreActionBtnDisabled]}
+                    onPress={handleFirestoreSelect}
+                    disabled={firestoreBusy || !firestoreCollectionPath.trim() || (firestoreSelectMode === 'doc' && !firestoreDocumentId.trim())}
+                  >
+                    <Text style={styles.firestoreActionText}>SELECT</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.firestoreActionBtn, pressed && styles.firestoreActionBtnPressed, firestoreBusy && styles.firestoreActionBtnDisabled]}
+                    onPress={handleFirestoreInsert}
+                    disabled={firestoreBusy || !firestoreCollectionPath.trim()}
+                  >
+                    <Text style={styles.firestoreActionText}>INSERT</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.firestoreActionsRow}>
+                  <Pressable
+                    style={({ pressed }) => [styles.firestoreActionBtn, pressed && styles.firestoreActionBtnPressed, firestoreBusy && styles.firestoreActionBtnDisabled]}
+                    onPress={handleFirestoreUpdate}
+                    disabled={firestoreBusy || !firestoreCollectionPath.trim() || !firestoreDocumentId.trim()}
+                  >
+                    <Text style={styles.firestoreActionText}>UPDATE</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.firestoreDeleteBtn, pressed && styles.firestoreActionBtnPressed, firestoreBusy && styles.firestoreActionBtnDisabled]}
+                    onPress={handleFirestoreDelete}
+                    disabled={firestoreBusy || !firestoreCollectionPath.trim() || !firestoreDocumentId.trim()}
+                  >
+                    <Text style={styles.firestoreDeleteText}>DELETE</Text>
+                  </Pressable>
+                </View>
+
+                {firestoreBusy ? (
+                  <View style={styles.loadingWrap}>
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                    <Text style={styles.loadingText}>Executando operação no Firestore...</Text>
+                  </View>
+                ) : null}
+
+                  <Text style={styles.sectionLabel}>Resultado</Text>
+                  <View style={styles.firestoreResultBox}>
+                    <Text style={styles.firestoreResultText} selectable>{firestoreResultText}</Text>
+                  </View>
+                  </>
+                )}
+              </View>
 
               <View style={styles.gridRow}>
                 <Pressable style={styles.cardPressable} onPress={() => setShowAcademiasCards((prev) => !prev)}>
@@ -870,5 +1385,148 @@ const styles = StyleSheet.create({
   },
   adminChipTextActive: {
     color: theme.colors.primary
+  },
+  payloadInput: {
+    minHeight: 140,
+    fontFamily: 'monospace'
+  },
+  consoleAccessCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    marginBottom: 10
+  },
+  consoleAccessCardPressed: {
+    opacity: 0.9
+  },
+  consoleAccessHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4
+  },
+  consoleAccessTitle: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 8
+  },
+  consoleAccessArrow: {
+    color: theme.colors.muted,
+    fontSize: 16,
+    fontWeight: '700'
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10
+  },
+  modeBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    paddingVertical: 8,
+    alignItems: 'center'
+  },
+  modeBtnActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: '#dbeafe'
+  },
+  modeBtnPressed: {
+    opacity: 0.88
+  },
+  modeBtnText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  modeBtnTextActive: {
+    color: theme.colors.primary
+  },
+  optionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10
+  },
+  optionChip: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    paddingVertical: 6,
+    paddingHorizontal: 10
+  },
+  optionChipActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: '#dbeafe'
+  },
+  optionChipText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  optionChipTextActive: {
+    color: theme.colors.primary
+  },
+  firestoreActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8
+  },
+  firestoreActionBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.radii.sm,
+    backgroundColor: '#dbeafe',
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  firestoreDeleteBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    borderRadius: theme.radii.sm,
+    backgroundColor: '#fee2e2',
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  firestoreActionBtnPressed: {
+    opacity: 0.85
+  },
+  firestoreActionBtnDisabled: {
+    opacity: 0.5
+  },
+  firestoreActionText: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  firestoreDeleteText: {
+    color: theme.colors.danger,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  firestoreResultBox: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    padding: 10,
+    minHeight: 120
+  },
+  firestoreResultText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontFamily: 'monospace'
   }
 });

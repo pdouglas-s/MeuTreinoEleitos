@@ -263,6 +263,11 @@ service cloud.firestore {
           && request.resource.data.is_padrao == true
         )
         || (
+          isSystemAdmin()
+          && request.resource.data.is_padrao != true
+          && academiaExists(request.resource.data.academia_id)
+        )
+        || (
           isAcademyStaff()
           &&
           request.resource.data.is_padrao != true

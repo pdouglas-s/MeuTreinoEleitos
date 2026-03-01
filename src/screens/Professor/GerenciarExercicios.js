@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, FlatList, Pressable as TouchableOpacity, Pressable as TouchableWithoutFeedback } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import theme from '../../theme';
 import { Alert } from '../../utils/alert';
 import { listAllExercicios, createExercicio, deleteExercicio, inicializarBancoExercicios, existemExerciciosPadrao, deleteExerciciosPadrao, updateExercicio, personalizarExercicioPadraoParaAcademia, exercicioTemAlunoAssociado, ocultarExercicioPadraoParaAcademia } from '../../services/exerciciosService';
-import { listAllProfessores } from '../../services/userService';
+import { listAllProfessores, listAcademias } from '../../services/userService';
 import { auth } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAuthErrorMessage } from '../../utils/authErrors';
@@ -15,6 +16,7 @@ export default function GerenciarExercicios({ navigation }) {
   const isSystemAdmin = profile?.role === 'admin_sistema';
   const isAcademyAdmin = profile?.role === 'admin_academia';
   const [exercicios, setExercicios] = useState([]);
+  const [buscaExercicio, setBuscaExercicio] = useState('');
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState('');
   const [series, setSeries] = useState('');
@@ -30,6 +32,11 @@ export default function GerenciarExercicios({ navigation }) {
   const [repsEditadas, setRepsEditadas] = useState('');
   const [professoresAcademia, setProfessoresAcademia] = useState([]);
   const [filtroAtivo, setFiltroAtivo] = useState('todos');
+  const [academiasSistema, setAcademiasSistema] = useState([]);
+  const [academiaSelecionadaSistema, setAcademiaSelecionadaSistema] = useState('');
+  const [academiaSelecionadaSistemaInfo, setAcademiaSelecionadaSistemaInfo] = useState(null);
+  const [buscaAcademiaSistema, setBuscaAcademiaSistema] = useState('');
+  const [academiaEditadaSistema, setAcademiaEditadaSistema] = useState('');
 
   useEffect(() => {
     if (!['admin_sistema', 'admin_academia'].includes(profile?.role)) {
@@ -52,9 +59,55 @@ export default function GerenciarExercicios({ navigation }) {
     }
   }, [isSystemAdmin]);
 
+  useEffect(() => {
+    if (!isSystemAdmin) return;
+
+    (async () => {
+      try {
+        const list = await listAcademias();
+        setAcademiasSistema(list);
+        if (!academiaSelecionadaSistema && list.length > 0) {
+          const primeira = list[0] || null;
+          setAcademiaSelecionadaSistema(String(primeira?.id || ''));
+          setAcademiaSelecionadaSistemaInfo(primeira);
+        } else {
+          const selecionada = list.find((item) => String(item?.id || '') === String(academiaSelecionadaSistema || '')) || null;
+          setAcademiaSelecionadaSistemaInfo(selecionada);
+        }
+      } catch (err) {
+        Alert.alert('Erro', getAuthErrorMessage(err, 'Não foi possível carregar academias para vincular exercício.'));
+      }
+    })();
+  }, [isSystemAdmin]);
+
+  // Atualiza exercícios ao trocar academia selecionada (admin_sistema)
+  useEffect(() => {
+    if (isSystemAdmin && academiaSelecionadaSistema) {
+      loadExercicios();
+    }
+  }, [academiaSelecionadaSistema]);
+
+  const academiasSistemaEncontradas = useMemo(() => {
+    const termo = String(buscaAcademiaSistema || '').trim().toLowerCase();
+    if (termo.length < 2) return [];
+
+    return academiasSistema
+      .filter((item) => String(item?.nome || '').toLowerCase().includes(termo))
+      .slice(0, 8);
+  }, [academiasSistema, buscaAcademiaSistema]);
+
+  function handleSelecionarAcademiaSistema(item) {
+    setAcademiaSelecionadaSistema(String(item?.id || ''));
+    setAcademiaSelecionadaSistemaInfo(item || null);
+    setBuscaAcademiaSistema('');
+  }
+
   async function loadExercicios() {
     try {
-      const academiaIdAtual = String(profile?.academia_id || '').trim();
+      let academiaIdAtual = String(profile?.academia_id || '').trim();
+      if (isSystemAdmin && academiaSelecionadaSistema) {
+        academiaIdAtual = String(academiaSelecionadaSistema).trim();
+      }
       const promises = [listAllExercicios({ academiaId: academiaIdAtual })];
       if (isAcademyAdmin) {
         promises.push(listAllProfessores());
@@ -64,7 +117,7 @@ export default function GerenciarExercicios({ navigation }) {
       list.sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nome.localeCompare(b.nome));
       setExercicios(list);
       setProfessoresAcademia(Array.isArray(professoresList) ? professoresList : []);
-      
+
       // Verificar se existem exercícios padrão
       const temPadrao = await existemExerciciosPadrao();
       setTemExerciciosPadrao(temPadrao);
@@ -75,10 +128,15 @@ export default function GerenciarExercicios({ navigation }) {
 
   async function handleCreateExercicio() {
     if (!nome || !categoria) return Alert.alert('Erro', 'Nome e categoria são obrigatórios');
+    if (isSystemAdmin && !academiaSelecionadaSistema) {
+      return Alert.alert('Erro', 'Selecione a academia para criar o exercício.');
+    }
     try {
       const seriesTexto = String(series || '').trim();
       const repsTexto = String(reps || '').trim();
-      const academiaIdAtual = String(profile?.academia_id || '').trim();
+      const academiaIdAtual = isSystemAdmin
+        ? String(academiaSelecionadaSistema || '').trim()
+        : String(profile?.academia_id || '').trim();
       const payloadCreate = {
         nome, 
         categoria, 
@@ -140,7 +198,7 @@ export default function GerenciarExercicios({ navigation }) {
         const code = String(checkErr?.code || '').toLowerCase();
         const message = String(checkErr?.message || '').toLowerCase();
         const isPermissionError = code.includes('permission-denied') || message.includes('insufficient permissions');
-        const podeIgnorarCheck = isAcademyAdmin && isExercicioAcademia(exercicio);
+        const podeIgnorarCheck = (isAcademyAdmin && isExercicioAcademia(exercicio)) || isSystemAdmin;
 
         if (!(isPermissionError && podeIgnorarCheck)) {
           throw checkErr;
@@ -165,6 +223,7 @@ export default function GerenciarExercicios({ navigation }) {
     setCategoriaEditada(exercicio.categoria || '');
     setSeriesEditadas(exercicio.series_padrao ? String(exercicio.series_padrao) : '');
     setRepsEditadas(exercicio.repeticoes_padrao ? String(exercicio.repeticoes_padrao) : '');
+    setAcademiaEditadaSistema(String(exercicio?.academia_id || ''));
   }
 
   function cancelarEdicao() {
@@ -173,6 +232,7 @@ export default function GerenciarExercicios({ navigation }) {
     setCategoriaEditada('');
     setSeriesEditadas('');
     setRepsEditadas('');
+    setAcademiaEditadaSistema('');
   }
 
   async function salvarEdicaoExercicio(exercicio) {
@@ -206,10 +266,11 @@ export default function GerenciarExercicios({ navigation }) {
 
     try {
       const academiaIdAtual = String(profile?.academia_id || '').trim();
+      const academiaIdSistema = String(academiaEditadaSistema || exercicio?.academia_id || '').trim();
       const academiaPayload = {
         ...payload,
         criado_por: auth.currentUser?.uid,
-        academia_id: academiaIdAtual || null,
+        academia_id: isSystemAdmin ? (academiaIdSistema || null) : (academiaIdAtual || null),
         is_padrao: false
       };
 
@@ -236,6 +297,9 @@ export default function GerenciarExercicios({ navigation }) {
         await updateExercicio(exercicio.id, sistemaPayload);
         Alert.alert('Sucesso', 'Exercício padrão atualizado com sucesso.');
       } else {
+        if (isSystemAdmin && !academiaPayload.academia_id) {
+          return Alert.alert('Erro', 'Selecione a academia para atualizar o exercício.');
+        }
         await updateExercicio(exercicio.id, academiaPayload);
         Alert.alert('Sucesso', 'Exercício atualizado com sucesso.');
       }
@@ -364,11 +428,19 @@ export default function GerenciarExercicios({ navigation }) {
   const totalPadrao = exerciciosPadrao.length;
   const totalAcademia = exerciciosAcademia.length;
 
-  const exerciciosFiltrados = filtroAtivo === 'padrao'
+  // Filtra exercícios pelo campo de busca
+  const exerciciosFiltrados = (filtroAtivo === 'padrao'
     ? exerciciosPadrao
     : filtroAtivo === 'academia'
       ? exerciciosAcademia
-      : exerciciosVisiveis;
+      : exerciciosVisiveis
+  ).filter((item) => {
+    if (!buscaExercicio.trim()) return true;
+    const nome = String(item?.nome || '').toLowerCase();
+    const categoria = String(item?.categoria || '').toLowerCase();
+    const busca = buscaExercicio.toLowerCase();
+    return nome.includes(busca) || categoria.includes(busca);
+  });
 
   const filtroDescricao = filtroAtivo === 'padrao'
     ? ' (somente padrão)'
@@ -491,6 +563,53 @@ export default function GerenciarExercicios({ navigation }) {
       <View style={styles.cardBlock}>
         <CardMedia variant="exercicio" label="NOVO EXERCÍCIO" />
         <Text style={styles.blockTitle}>Cadastrar novo exercício</Text>
+        {isSystemAdmin && (
+          <>
+            <Text style={styles.blockHint}>Selecione a academia em que o exercício será criado.</Text>
+            <TextInput
+              placeholder="Digite o nome da academia"
+              value={buscaAcademiaSistema}
+              onChangeText={(value) => {
+                setBuscaAcademiaSistema(value);
+                setAcademiaSelecionadaSistema('');
+                setAcademiaSelecionadaSistemaInfo(null);
+              }}
+              style={styles.input}
+              autoCapitalize="words"
+            />
+            <Text style={styles.helperText}>Digite pelo menos 2 letras para buscar.</Text>
+
+            {academiasSistemaEncontradas.length > 0 && (
+              <View style={styles.academiasSugestoesBox}>
+                {academiasSistemaEncontradas.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.academiaSugestaoItem}
+                    onPress={() => handleSelecionarAcademiaSistema(item)}
+                  >
+                    <Text style={styles.academiaSugestaoNome}>{item.nome}</Text>
+                    <Text style={styles.academiaSugestaoMeta}>ID: {item.id}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {academiaSelecionadaSistemaInfo && (
+              <View style={styles.academiaSelecionadaBox}>
+                <Text style={styles.academiaSelecionadaText}>Selecionada: {academiaSelecionadaSistemaInfo.nome}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setBuscaAcademiaSistema('');
+                    setAcademiaSelecionadaSistema('');
+                    setAcademiaSelecionadaSistemaInfo(null);
+                  }}
+                >
+                  <Text style={styles.academiaSelecionadaRemover}>Limpar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
         <TextInput placeholder="Nome do exercício" style={styles.input} value={nome} onChangeText={setNome} />
         <TextInput placeholder="Categoria (Peito, Costas, Pernas...)" style={styles.input} value={categoria} onChangeText={setCategoria} />
         <TextInput placeholder="Séries padrão" style={styles.input} value={series} onChangeText={setSeries} />
@@ -506,7 +625,14 @@ export default function GerenciarExercicios({ navigation }) {
           </TouchableOpacity>
         )}
       </View>
-      
+      {/* Campo de busca de exercícios */}
+      <TextInput
+        placeholder="Buscar exercício por nome ou categoria"
+        value={buscaExercicio}
+        onChangeText={setBuscaExercicio}
+        style={styles.input}
+        autoCapitalize="none"
+      />
       <FlatList
         data={exerciciosFiltrados}
         keyExtractor={(item) => item.id}
@@ -516,7 +642,7 @@ export default function GerenciarExercicios({ navigation }) {
         renderItem={({ item }) => (
           (() => {
             const showDualIconsPadraoAcademia = isAcademyAdmin && item?.is_padrao === true;
-            const showEditAction = showDualIconsPadraoAcademia || (isAcademyAdmin && isExercicioAcademia(item));
+            const showEditAction = showDualIconsPadraoAcademia || (isAcademyAdmin && isExercicioAcademia(item)) || (isSystemAdmin && item?.is_padrao !== true);
             const detalhesExercicio = formatarDetalhesExercicio(item);
             return (
           <TouchableOpacity
@@ -554,6 +680,24 @@ export default function GerenciarExercicios({ navigation }) {
                       placeholder="Reps"
                     />
                   </View>
+                  {isSystemAdmin && item?.is_padrao !== true && (
+                    <View style={styles.pickerContainer}>
+                      <Picker
+                        selectedValue={academiaEditadaSistema}
+                        onValueChange={(value) => setAcademiaEditadaSistema(String(value || ''))}
+                        style={styles.picker}
+                      >
+                        <Picker.Item label="Selecione a academia" value="" />
+                        {academiasSistema.map((academia) => (
+                          <Picker.Item
+                            key={academia.id}
+                            label={String(academia.nome || academia.id)}
+                            value={academia.id}
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                  )}
                 </>
               ) : (
                 <Text style={{ fontSize: 16, fontWeight: '500' }}>{item.nome}</Text>
@@ -708,6 +852,12 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     marginBottom: 10
   },
+  helperText: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 10
+  },
   input: {
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -715,6 +865,63 @@ const styles = StyleSheet.create({
     padding: theme.spacing(1.5),
     marginBottom: theme.spacing(1),
     backgroundColor: theme.colors.background
+  },
+  academiasSugestoesBox: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.background,
+    marginBottom: 10,
+    overflow: 'hidden'
+  },
+  academiaSugestaoItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb'
+  },
+  academiaSugestaoNome: {
+    color: theme.colors.text,
+    fontWeight: '600',
+    fontSize: 14
+  },
+  academiaSugestaoMeta: {
+    color: theme.colors.muted,
+    marginTop: 2,
+    fontSize: 12
+  },
+  academiaSelecionadaBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: theme.radii.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10
+  },
+  academiaSelecionadaText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  academiaSelecionadaRemover: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: theme.radii.sm,
+    marginBottom: theme.spacing(1),
+    backgroundColor: theme.colors.background,
+    overflow: 'hidden'
+  },
+  picker: {
+    width: '100%'
   },
   exercicioRow: { 
     flexDirection: 'row', 

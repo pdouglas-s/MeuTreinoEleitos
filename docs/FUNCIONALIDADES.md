@@ -73,6 +73,18 @@ A aplicação utiliza:
   - academia com maior número de alunos,
   - visão por academia (alunos/professores/admins/treinos/notificações).
 
+### Console Administrativo Firestore
+
+- Acesso direto no painel do `admin_sistema` para operações em coleções:
+  - `SELECT` (por ID ou lista),
+  - `INSERT`,
+  - `UPDATE`,
+  - `DELETE`.
+- Suporte a filtros, limite e ordenação no `SELECT`.
+- Presets rápidos de consulta para cenários comuns (usuários por papel, treinos e notificações por academia).
+- Validação de payload JSON para operações de escrita.
+- Resultado formatado em JSON exibido no próprio painel.
+
 ### Segurança operacional
 
 - Pode gerenciar dados em escopo global, respeitando regras de segurança.
@@ -103,6 +115,7 @@ A aplicação utiliza:
 - Excluir exercício.
 - Inicializar/reinicializar exercícios padrão.
 - Excluir exercícios padrão.
+- Pesquisar exercícios por nome/categoria.
 
 ### Indicadores locais
 
@@ -126,9 +139,17 @@ A aplicação utiliza:
 ### Edição de Treino (detalhe)
 
 - Alterar nome do treino.
+- Alterar informações complementares do treino (`info_complementar`).
 - Adicionar e remover exercícios do treino.
 - Buscar exercício por categoria no banco.
 - Associar treino a aluno.
+
+### Gestão de exercícios para `admin_sistema`
+
+- Criar exercício não padrão vinculado a uma academia selecionada.
+- Editar exercício não padrão com troca de `academia_id`.
+- Busca de academias por nome para seleção rápida no cadastro.
+- Recarregamento automático da listagem ao trocar a academia selecionada.
 
 ### Regra de vínculo múltiplo por aluno (nova lógica)
 
